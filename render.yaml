@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: internal-link-audit-tool
+    runtime: node
+    plan: starter
+    buildCommand: npm install && npm run prisma:generate && npm run build
+    startCommand: npm run db:push && npm run start
+    healthCheckPath: /
+    disk:
+      name: audit-sqlite-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 22.13.0
+      - key: DATABASE_URL
+        value: file:/var/data/audit.db

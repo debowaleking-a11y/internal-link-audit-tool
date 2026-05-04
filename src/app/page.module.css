@@ -1,142 +1,394 @@
 .page {
-  --background: #fafafa;
-  --foreground: #fff;
-
-  --text-primary: #000;
-  --text-secondary: #666;
-
-  --button-primary-hover: #383838;
-  --button-secondary-hover: #f2f2f2;
-  --button-secondary-border: #ebebeb;
-
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-geist-sans);
-  background-color: var(--background);
+  width: min(1440px, 100%);
+  margin: 0 auto;
+  padding: 40px 32px 56px;
+  color: #152023;
 }
 
-.main {
+.header {
   display: flex;
-  flex: 1;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+
+.productLabel {
+  margin-bottom: 12px;
+  color: #42706d;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.header h1 {
+  max-width: 760px;
+  font-size: clamp(36px, 5vw, 68px);
+  line-height: 0.96;
+  letter-spacing: 0;
+}
+
+.lede {
+  max-width: 720px;
+  margin-top: 18px;
+  color: #536467;
+  font-size: 18px;
+  line-height: 1.6;
+}
+
+.auditPanel,
+.resultsCard,
+.sidePanel,
+.emptyState {
+  border: 1px solid #dce5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 16px 60px rgba(27, 42, 38, 0.07);
+}
+
+.auditPanel {
+  padding: 18px;
+}
+
+.form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(220px, 1.2fr) 140px auto;
+  gap: 14px;
+  align-items: end;
+}
+
+.form label,
+.filters label {
+  display: grid;
+  gap: 8px;
+  color: #536467;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.form input,
+.filters input {
   width: 100%;
-  max-width: 800px;
-  flex-direction: column;
+  min-height: 44px;
+  border: 1px solid #c9d7d2;
+  border-radius: 6px;
+  background: #fbfdfc;
+  color: #152023;
+  font: inherit;
+  padding: 0 12px;
+  outline: none;
+}
+
+.form input:focus,
+.filters input:focus {
+  border-color: #397b77;
+  box-shadow: 0 0 0 3px rgba(57, 123, 119, 0.16);
+}
+
+.form button,
+.exportButton,
+.segmented button,
+.segmentedWide button {
+  min-height: 44px;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 750;
+}
+
+.form button,
+.exportButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #183b3b;
+  color: #ffffff;
+  padding: 0 18px;
+  white-space: nowrap;
+}
+
+.form button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.exportButton {
+  text-decoration: none;
+}
+
+.error {
+  margin-top: 14px;
+  color: #a33d22;
+  font-weight: 650;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.stat {
+  min-height: 92px;
+  border: 1px solid #dce5e1;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 16px;
+}
+
+.stat span {
+  color: #667579;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.stat strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.warn strong {
+  color: #b1452b;
+}
+
+.good strong {
+  color: #2f7561;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 18px;
+}
+
+.resultsCard,
+.sidePanel {
+  min-width: 0;
+  padding: 18px;
+}
+
+.cardHeader {
+  display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  background-color: var(--foreground);
-  padding: 120px 60px;
-}
-
-.intro {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  text-align: left;
-  gap: 24px;
-}
-
-.intro h1 {
-  max-width: 320px;
-  font-size: 40px;
-  font-weight: 600;
-  line-height: 48px;
-  letter-spacing: -2.4px;
-  text-wrap: balance;
-  color: var(--text-primary);
-}
-
-.intro p {
-  max-width: 440px;
-  font-size: 18px;
-  line-height: 32px;
-  text-wrap: balance;
-  color: var(--text-secondary);
-}
-
-.intro a {
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.ctas {
-  display: flex;
-  flex-direction: row;
-  width: 100%;
-  max-width: 440px;
   gap: 16px;
-  font-size: 14px;
+  margin-bottom: 16px;
 }
 
-.ctas a {
+.cardHeader h2,
+.suggestions h2,
+.emptyState h2 {
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.cardHeader p,
+.emptyState p {
+  margin-top: 6px;
+  color: #667579;
+  line-height: 1.5;
+}
+
+.segmented,
+.segmentedWide {
   display: flex;
-  justify-content: center;
+  overflow: hidden;
+  border: 1px solid #d6e1dd;
+  border-radius: 6px;
+  background: #f4f8f6;
+}
+
+.segmented button,
+.segmentedWide button {
+  min-height: 36px;
+  border-radius: 0;
+  background: transparent;
+  color: #52686a;
+  padding: 0 12px;
+}
+
+.segmented button + button,
+.segmentedWide button + button {
+  border-left: 1px solid #d6e1dd;
+}
+
+.segmented .active,
+.segmentedWide .active {
+  background: #dcebe7;
+  color: #193b3b;
+}
+
+.segmentedWide {
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.segmentedWide button {
+  flex: 1;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.tableWrap {
+  overflow: auto;
+  border: 1px solid #e1e9e6;
+  border-radius: 8px;
+}
+
+.tableWrap table {
+  width: 100%;
+  min-width: 1040px;
+  border-collapse: collapse;
+}
+
+.tableWrap th,
+.tableWrap td {
+  border-bottom: 1px solid #e7eeee;
+  padding: 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.tableWrap th {
+  position: sticky;
+  top: 0;
+  background: #f5f8f7;
+  color: #52686a;
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: uppercase;
+  z-index: 1;
+}
+
+.tableWrap td {
+  max-width: 280px;
+  color: #253438;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.tableWrap a,
+.issueItem a {
+  color: #285f78;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.badgeGood,
+.badgeWarn {
+  display: inline-flex;
   align-items: center;
-  height: 40px;
-  padding: 0 16px;
-  border-radius: 128px;
-  border: 1px solid transparent;
-  transition: 0.2s;
-  cursor: pointer;
-  width: fit-content;
-  font-weight: 500;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 0 9px;
+  font-size: 12px;
+  font-weight: 800;
 }
 
-a.primary {
-  background: var(--text-primary);
-  color: var(--background);
-  gap: 8px;
+.badgeGood {
+  background: #dff3ea;
+  color: #23634f;
 }
 
-a.secondary {
-  border-color: var(--button-secondary-border);
+.badgeWarn {
+  background: #f8e2d7;
+  color: #9b3d24;
 }
 
-/* Enable hover only on non-touch devices */
-@media (hover: hover) and (pointer: fine) {
-  a.primary:hover {
-    background: var(--button-primary-hover);
-    border-color: transparent;
+.muted,
+.empty {
+  color: #809094;
+}
+
+.empty {
+  padding: 24px;
+  text-align: center;
+}
+
+.issueList {
+  display: grid;
+  gap: 10px;
+}
+
+.issueItem {
+  border: 1px solid #e1e9e6;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfdfc;
+}
+
+.issueItem p {
+  margin-top: 6px;
+  color: #6a7a7d;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.issueItem strong {
+  display: inline-block;
+  margin-top: 8px;
+  color: #183b3b;
+  font-size: 13px;
+}
+
+.suggestions {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.suggestions h2 {
+  margin-bottom: 4px;
+}
+
+.emptyState {
+  margin-top: 18px;
+  padding: 28px;
+}
+
+@media (max-width: 1120px) {
+  .statsGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  a.secondary:hover {
-    background: var(--button-secondary-hover);
-    border-color: transparent;
+  .workspace,
+  .form {
+    grid-template-columns: 1fr;
   }
 }
 
-@media (max-width: 600px) {
-  .main {
-    padding: 48px 24px;
-  }
-
-  .intro {
-    gap: 16px;
-  }
-
-  .intro h1 {
-    font-size: 32px;
-    line-height: 40px;
-    letter-spacing: -1.92px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  .logo {
-    filter: invert();
-  }
-
+@media (max-width: 720px) {
   .page {
-    --background: #000;
-    --foreground: #000;
+    padding: 24px 16px 40px;
+  }
 
-    --text-primary: #ededed;
-    --text-secondary: #999;
+  .header,
+  .cardHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
 
-    --button-primary-hover: #ccc;
-    --button-secondary-hover: #1a1a1a;
-    --button-secondary-border: #1a1a1a;
+  .statsGrid,
+  .filters {
+    grid-template-columns: 1fr;
+  }
+
+  .segmented {
+    width: 100%;
+  }
+
+  .segmented button {
+    flex: 1;
+    padding: 0 8px;
   }
 }

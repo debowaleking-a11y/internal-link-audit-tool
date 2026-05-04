@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model AuditRun {
+  id         String   @id @default(cuid())
+  websiteUrl String
+  targetUrl  String
+  crawlLimit Int
+  status     String   @default("completed")
+  error      String?
+  createdAt  DateTime @default(now())
+  pages      Page[]
+  links      Link[]
+}
+
+model Page {
+  id         String   @id @default(cuid())
+  auditRunId String
+  url        String
+  title      String
+  statusCode Int?
+  crawled    Boolean  @default(false)
+  error      String?
+  createdAt  DateTime @default(now())
+  auditRun   AuditRun @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
+  links      Link[]
+
+  @@unique([auditRunId, url])
+  @@index([auditRunId])
+}
+
+model Link {
+  id           String   @id @default(cuid())
+  auditRunId   String
+  sourcePageId String
+  sourceUrl    String
+  targetUrl    String
+  anchorText   String
+  position     Int
+  rel          String
+  follow       Boolean
+  statusCode   Int?
+  pageTitle    String
+  isBroken     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  auditRun     AuditRun @relation(fields: [auditRunId], references: [id], onDelete: Cascade)
+  sourcePage   Page     @relation(fields: [sourcePageId], references: [id], onDelete: Cascade)
+
+  @@index([auditRunId])
+  @@index([targetUrl])
+  @@index([sourceUrl])
+}

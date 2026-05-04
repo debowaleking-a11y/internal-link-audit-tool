@@ -1,36 +1,107 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Internal Link Audit Tool
 
-## Getting Started
+A Next.js MVP for crawling a website, extracting internal links, finding link issues, and exporting results to CSV.
 
-First, run the development server:
+## Features
+
+- Enter a website URL, target URL, and crawl limit.
+- Crawl same-domain internal URLs with a Cheerio-based Node crawler.
+- Capture source URL, target URL, anchor text, link position, rel, follow/nofollow, status code, and page title.
+- Store audit runs, pages, and links in SQLite through Prisma.
+- Filter by target URL, anchor text, broken links, nofollow links, orphan pages, and low-link pages.
+- Suggest pages that could link to the target URL with a simple anchor text recommendation.
+- Export the raw link table as CSV.
+
+## Tech Stack
+
+- Next.js App Router
+- TypeScript
+- Prisma
+- SQLite
+- Cheerio
+
+## Setup
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Generate the Prisma client:
+
+```bash
+cp .env.example .env
+npm run prisma:generate
+```
+
+Create the local SQLite database:
+
+```bash
+sqlite3 prisma/dev.db < prisma/manual-init.sql
+```
+
+You can also try Prisma's normal schema push command:
+
+```bash
+npm run db:push
+```
+
+In this workspace, Prisma's schema engine validated the schema but failed during `db push`, so `prisma/manual-init.sql` is included as a reliable SQLite bootstrap.
+
+Start the app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploy Online
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+This app is best deployed as a single Node web service while it uses SQLite. Serverless hosts can run the UI and API, but SQLite needs a writable persistent disk for saved audit runs and CSV exports.
 
-## Learn More
+The repo includes a `render.yaml` Blueprint for Render:
 
-To learn more about Next.js, take a look at the following resources:
+- Runtime: Node 22
+- Build command: `npm install && npm run prisma:generate && npm run build`
+- Start command: `npm run db:push && npm run start`
+- Persistent SQLite path: `/var/data/audit.db`
+- `DATABASE_URL`: `file:/var/data/audit.db`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+To deploy:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Push this repo to GitHub, GitLab, or Bitbucket.
+2. In Render, choose **New > Blueprint**.
+3. Select the repo.
+4. Render will read `render.yaml`, create the web service, attach a persistent disk, and deploy it.
 
-## Deploy on Vercel
+For a cheaper serverless deployment later, switch production storage from SQLite to PostgreSQL and keep SQLite for local development.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Usage
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Enter a website URL, such as `https://www.vidau.ai/`.
+2. Enter a target URL on the same domain, such as `https://www.vidau.ai/ai-video-generator/`.
+3. Pick a crawl limit. Start small, then increase it after confirming the crawl pattern.
+4. Run the audit.
+5. Review extracted links, page issues, and anchor opportunities.
+6. Use **Export CSV** to download the link rows.
+
+## Scripts
+
+```bash
+npm run dev
+npm run build
+npm run lint
+npm run prisma:generate
+npm run db:push
+npm run db:studio
+```
+
+## Notes
+
+- The crawler only follows internal URLs on the same hostname as the website URL.
+- URL fragments are removed and trailing slashes are normalized.
+- Broken links are links with unknown status or HTTP status code `400+`.
+- Low-link pages are currently crawled pages with fewer than three outgoing internal links.
+- Google Sheets export is intentionally left for a later iteration; CSV export is the MVP path.
