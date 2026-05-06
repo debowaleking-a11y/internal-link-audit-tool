@@ -113,20 +113,66 @@ type InboundTrackerResult = {
   }>;
 };
 
+type TrackerConnection = {
+  trackerId: string | null;
+  site: string | null;
+  connected: boolean;
+  lastSeen: string | null;
+  pagesSeen: number;
+  reportsSeen: number;
+};
+
 type FilterMode = "target" | "all" | "broken" | "nofollow";
 type PageFilterMode = "orphans" | "low-links";
 
 const defaultWebsite = "https://www.vidau.ai/";
 const defaultTarget = "https://www.vidau.ai/ai-video-generator/";
-const headerSnippet = `<script async src="https://internal-link-audit-tool.netlify.app/api/tracker.js"></script>`;
-const footerSnippet = `<script>
+const trackerScriptUrl = "https://internal-link-audit-tool.netlify.app/api/tracker.js";
+
+function hostnameFromUrl(value: string) {
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function trackerIdForWebsite(value: string) {
+  const hostname = hostnameFromUrl(value) || "your-website";
+  let hash = 0;
+
+  for (let index = 0; index < hostname.length; index += 1) {
+    hash = (hash * 31 + hostname.charCodeAt(index)) >>> 0;
+  }
+
+  const label = hostname
+    .replace(/^www\./, "")
+    .split(".")[0]
+    .replace(/[^a-z0-9]/gi, "")
+    .slice(0, 8)
+    .toUpperCase() || "SITE";
+
+  return `ILA-${label}-${hash.toString(36).toUpperCase().slice(0, 5)}`;
+}
+
+function trackerScriptWithId(trackerId: string) {
+  return `${trackerScriptUrl}?id=${encodeURIComponent(trackerId)}`;
+}
+
+function headerSnippetFor(trackerId: string) {
+  return `<script async src="${trackerScriptWithId(trackerId)}"></script>`;
+}
+
+function footerSnippetFor(trackerId: string) {
+  return `<script>
   window.addEventListener("load", function () {
     var s = document.createElement("script");
-    s.src = "https://internal-link-audit-tool.netlify.app/api/tracker.js";
+    s.src = "${trackerScriptWithId(trackerId)}";
     s.async = true;
     document.body.appendChild(s);
   });
 </script>`;
+}
 
 function csvCell(value: string | number | boolean | null) {
   const text = value === null ? "" : String(value);
@@ -180,6 +226,7 @@ export default function Home() {
   const [pageMode, setPageMode] = useState<PageFilterMode>("orphans");
   const [result, setResult] = useState<AuditResponse | null>(null);
   const [trackerSummary, setTrackerSummary] = useState<TrackerSummary | null>(null);
+  const [trackerConnection, setTrackerConnection] = useState<TrackerConnection | null>(null);
   const [inboundTracker, setInboundTracker] = useState<InboundTrackerResult | null>(null);
   const [trackerStatus, setTrackerStatus] = useState("");
   const [copiedSnippet, setCopiedSnippet] = useState("");
@@ -227,7 +274,13 @@ export default function Home() {
       const params = new URLSearchParams({
         limit: "100",
         targetUrl: trackerTargetUrl,
+        trackerId,
       });
+
+      if (siteHostname) {
+        params.set("site", siteHostname);
+      }
+
       const response = await fetch(`/api/track/reports?${params.toString()}`);
       const data = await response.json();
 
@@ -236,8 +289,13 @@ export default function Home() {
       }
 
       setTrackerSummary(data.summary);
+      setTrackerConnection(data.connection);
       setInboundTracker(data.inbound);
-      setTrackerStatus("Live reports refreshed.");
+      setTrackerStatus(
+        data.connection?.connected
+          ? `Connected. Last signal: ${new Date(data.connection.lastSeen).toLocaleString()}.`
+          : "Waiting for this website to load the snippet.",
+      );
     } catch (reportError) {
       setTrackerStatus(reportError instanceof Error ? reportError.message : "Could not load tracker reports.");
     }
@@ -277,6 +335,11 @@ export default function Home() {
   const inboundSources = inboundTracker?.sources ?? [];
   const crawlCounts = result?.summary.counts;
   const trackerCounts = trackerSummary?.counts;
+  const siteHostname = hostnameFromUrl(websiteUrl);
+  const trackerId = trackerIdForWebsite(websiteUrl);
+  const headerSnippet = headerSnippetFor(trackerId);
+  const footerSnippet = footerSnippetFor(trackerId);
+  const isConnected = trackerConnection?.connected ?? false;
 
   return (
     <main className={styles.shell}>
@@ -297,7 +360,7 @@ export default function Home() {
         </nav>
         <div className={styles.sideNote}>
           <span>Live status</span>
-          <strong>{trackerCounts?.reports ?? 0} reports stored</strong>
+          <strong>{isConnected ? "Website connected" : "Waiting for install"}</strong>
         </div>
       </aside>
 
@@ -321,6 +384,10 @@ export default function Home() {
               Combine sitemap crawling with a sitewide JavaScript tracker to monitor inbound internal links, anchors,
               placement, clicks, and page coverage.
             </p>
+            <div className={styles.installPill}>
+              <span>{trackerId}</span>
+              <strong>{isConnected ? "Website deployed" : "Snippet not detected yet"}</strong>
+            </div>
           </div>
           <form className={styles.heroSearch} onSubmit={runAudit}>
             <label>
@@ -400,6 +467,27 @@ export default function Home() {
               <p>Use one sitewide install. Header is fastest; footer is safer when themes or builders delay head scripts.</p>
             </div>
             {copiedSnippet ? <span className={styles.copyStatus}>{copiedSnippet}</span> : null}
+          </div>
+          <div className={styles.connectionGrid}>
+            <div className={styles.connectionCard}>
+              <span>Tool ID</span>
+              <strong className={styles.trackerId}>{trackerId}</strong>
+              <small>This is the hidden ID inside your script, similar to a GTM container ID.</small>
+            </div>
+            <div className={`${styles.connectionCard} ${isConnected ? styles.connected : styles.pending}`}>
+              <span>Website deployed</span>
+              <strong>{isConnected ? "Connected" : "Not detected yet"}</strong>
+              <small>
+                {isConnected && trackerConnection?.lastSeen
+                  ? `Last signal ${new Date(trackerConnection.lastSeen).toLocaleString()}`
+                  : "Install the snippet, open your website, then refresh reports."}
+              </small>
+            </div>
+            <div className={styles.connectionCard}>
+              <span>Tracked website</span>
+              <strong>{siteHostname || "Enter website URL"}</strong>
+              <small>{trackerConnection?.pagesSeen ?? 0} pages seen · {trackerConnection?.reportsSeen ?? 0} reports</small>
+            </div>
           </div>
           <div className={styles.snippetGrid}>
             <SnippetCard title="Header version" description="Paste inside the site head." snippet={headerSnippet} onCopy={() => copySnippet(headerSnippet, "Header")} />

@@ -9,6 +9,13 @@ const corsHeaders = {
   "access-control-allow-headers": "content-type",
 };
 
+function cleanTrackerId(value: unknown) {
+  return cleanText(value)
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]/g, "")
+    .slice(0, 40);
+}
+
 function cleanText(value: unknown, fallback = "") {
   return String(value ?? fallback).replace(/\s+/g, " ").trim().slice(0, 500);
 }
@@ -61,6 +68,7 @@ export async function POST(request: Request) {
     }
 
     const payload: TrackerPayload = {
+      trackerId: cleanTrackerId(body.trackerId) || undefined,
       site,
       pageUrl,
       pageTitle: cleanText(body.pageTitle).slice(0, 240),

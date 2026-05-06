@@ -209,6 +209,32 @@
   line-height: 1.65;
 }
 
+.installPill {
+  width: fit-content;
+  max-width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  border: 1px solid rgba(18, 196, 214, 0.26);
+  border-radius: 8px;
+  background: rgba(18, 196, 214, 0.08);
+  padding: 9px 12px;
+}
+
+.installPill span {
+  color: #12c4d6;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.installPill strong {
+  color: #ffffff;
+  font-size: 13px;
+}
+
 .heroSearch,
 .filters,
 .lookupRow {
@@ -411,6 +437,67 @@
   color: #ffd166 !important;
 }
 
+.connectionGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.connectionCard {
+  min-height: 118px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 16px;
+}
+
+.connectionCard span {
+  color: #8f98aa;
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.connectionCard strong {
+  color: #f5f7fb;
+  font-size: 20px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.connectionCard small {
+  color: #9aa4b7;
+  line-height: 1.45;
+}
+
+.trackerId {
+  color: #12c4d6 !important;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 18px !important;
+}
+
+.connected {
+  border-color: rgba(126, 231, 135, 0.34);
+  background: rgba(126, 231, 135, 0.08);
+}
+
+.connected strong {
+  color: #7ee787;
+}
+
+.pending {
+  border-color: rgba(255, 209, 102, 0.26);
+  background: rgba(255, 209, 102, 0.08);
+}
+
+.pending strong {
+  color: #ffd166;
+}
+
 .snippetGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -583,6 +670,7 @@
 
   .heroSearch,
   .metricsGrid,
+  .connectionGrid,
   .snippetGrid,
   .lowerGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -604,6 +692,7 @@
   .filters,
   .lookupRow,
   .metricsGrid,
+  .connectionGrid,
   .snippetGrid,
   .lowerGrid {
     grid-template-columns: 1fr;

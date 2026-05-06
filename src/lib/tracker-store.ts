@@ -10,6 +10,7 @@ export type TrackedLink = {
 };
 
 export type TrackerPayload = {
+  trackerId?: string;
   site: string;
   pageUrl: string;
   pageTitle: string;
@@ -82,6 +83,28 @@ export async function listTrackerPayloads(limit = 50) {
   );
 
   return payloads.filter((payload): payload is { key: string; data: TrackerPayload } => payload !== null);
+}
+
+function matchesTracker(payload: TrackerPayload, trackerId?: string, site?: string) {
+  const normalizedTrackerId = trackerId?.trim().toUpperCase();
+  const normalizedSite = site?.trim().toLowerCase();
+
+  if (normalizedTrackerId && payload.trackerId?.toUpperCase() !== normalizedTrackerId) {
+    return false;
+  }
+
+  if (normalizedSite && payload.site.toLowerCase() !== normalizedSite) {
+    return false;
+  }
+
+  return true;
+}
+
+export function filterTrackerPayloads(
+  payloads: Array<{ key: string; data: TrackerPayload }>,
+  filters: { trackerId?: string; site?: string },
+) {
+  return payloads.filter(({ data }) => matchesTracker(data, filters.trackerId, filters.site));
 }
 
 export function summarizeTrackerPayloads(payloads: Array<{ key: string; data: TrackerPayload }>) {

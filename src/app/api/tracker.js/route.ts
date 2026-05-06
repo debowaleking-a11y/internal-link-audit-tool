@@ -1,13 +1,16 @@
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const origin = new URL(request.url).origin;
+  const requestUrl = new URL(request.url);
+  const origin = requestUrl.origin;
+  const trackerId = requestUrl.searchParams.get("id")?.trim().toUpperCase() || "ILA-DEMO";
   const script = `
 (function () {
   if (window.__internalLinkAuditInstalled) return;
   window.__internalLinkAuditInstalled = true;
 
   var endpoint = ${JSON.stringify(`${origin}/api/track`)};
+  var trackerId = ${JSON.stringify(trackerId)};
   var site = location.hostname;
 
   function cleanText(value) {
@@ -47,6 +50,7 @@ export async function GET(request: Request) {
 
   function send(extra) {
     var payload = Object.assign({
+      trackerId: trackerId,
       site: site,
       pageUrl: location.href,
       pageTitle: document.title || "",

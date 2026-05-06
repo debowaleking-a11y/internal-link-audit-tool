@@ -67,7 +67,7 @@ The included `netlify.toml` sets the same build command, publish directory, and 
 Use the header version when your website lets you add custom code inside `<head>`:
 
 ```html
-<script async src="https://internal-link-audit-tool.netlify.app/api/tracker.js"></script>
+<script async src="https://internal-link-audit-tool.netlify.app/api/tracker.js?id=ILA-YOURSITE-12345"></script>
 ```
 
 Use the footer version when the header does not load reliably, or when your theme only supports code before the closing `</body>` tag:
@@ -76,7 +76,7 @@ Use the footer version when the header does not load reliably, or when your them
 <script>
   window.addEventListener("load", function () {
     var s = document.createElement("script");
-    s.src = "https://internal-link-audit-tool.netlify.app/api/tracker.js";
+    s.src = "https://internal-link-audit-tool.netlify.app/api/tracker.js?id=ILA-YOURSITE-12345";
     s.async = true;
     document.body.appendChild(s);
   });
@@ -84,6 +84,8 @@ Use the footer version when the header does not load reliably, or when your them
 ```
 
 You can also install one of these through Google Tag Manager or a CMS global custom-code area.
+
+The dashboard generates the correct `ILA-...` tool ID from the website URL you enter. After the snippet loads on at least one page, click **Refresh reports** and the install card changes from **Not detected yet** to **Connected**.
 
 The snippet does not change the page visually. It reports:
 
