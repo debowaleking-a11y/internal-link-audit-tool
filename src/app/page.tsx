@@ -43,6 +43,7 @@ type AuditResponse = {
       sitemapUrls: number;
       sitemapsRead: number;
       crawledFromSitemap: number;
+      stoppedEarly?: boolean;
     };
     links: LinkRow[];
   };
@@ -136,10 +137,11 @@ export default function Home() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ websiteUrl, targetUrl, crawlLimit }),
       });
-      const data = await response.json();
+      const responseText = await response.text();
+      const data = responseText ? JSON.parse(responseText) : {};
 
       if (!response.ok) {
-        throw new Error(data.error ?? "Audit failed.");
+        throw new Error(data.error ?? `Audit failed with status ${response.status}.`);
       }
 
       setResult(data);
@@ -225,6 +227,11 @@ export default function Home() {
           </button>
         </form>
         {error ? <p className={styles.error}>{error}</p> : null}
+        {result?.audit.discovery?.stoppedEarly ? (
+          <p className={styles.warning}>
+            Returned a partial audit before the free hosting time limit. Lower the crawl limit for a fuller pass.
+          </p>
+        ) : null}
       </section>
 
       {result ? (

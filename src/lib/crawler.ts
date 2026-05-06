@@ -33,9 +33,20 @@ type CrawlSeed = {
   source: "homepage" | "sitemap" | "link";
 };
 
+function timeoutSignal(ms: number) {
+  if (typeof AbortSignal !== "undefined" && "timeout" in AbortSignal) {
+    return AbortSignal.timeout(ms);
+  }
+
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), ms);
+  return controller.signal;
+}
+
 async function fetchPage(url: string): Promise<FetchResult> {
   const response = await fetch(url, {
     redirect: "follow",
+    signal: timeoutSignal(6000),
     headers: {
       "user-agent": "InternalLinkAuditBot/1.0 (+https://localhost)",
       accept: "text/html,application/xhtml+xml",
@@ -55,6 +66,7 @@ async function fetchPage(url: string): Promise<FetchResult> {
 async function fetchText(url: string) {
   const response = await fetch(url, {
     redirect: "follow",
+    signal: timeoutSignal(5000),
     headers: {
       "user-agent": "InternalLinkAuditBot/1.0 (+https://localhost)",
       accept: "application/xml,text/xml,text/plain,*/*",
@@ -225,6 +237,7 @@ async function getStatusCode(url: string) {
     const response = await fetch(url, {
       method: "HEAD",
       redirect: "follow",
+      signal: timeoutSignal(2500),
       headers: {
         "user-agent": "InternalLinkAuditBot/1.0 (+https://localhost)",
       },
@@ -236,6 +249,7 @@ async function getStatusCode(url: string) {
       const response = await fetch(url, {
         method: "GET",
         redirect: "follow",
+        signal: timeoutSignal(2500),
         headers: {
           "user-agent": "InternalLinkAuditBot/1.0 (+https://localhost)",
           range: "bytes=0-0",
@@ -252,10 +266,13 @@ export async function crawlWebsite(input: {
   websiteUrl: string;
   targetUrl: string;
   crawlLimit: number;
+  maxDurationMs?: number;
 }) {
   const websiteUrl = normalizeUrl(input.websiteUrl);
   const normalizedTarget = normalizeUrl(input.targetUrl, websiteUrl);
   const crawlLimit = Math.max(1, Math.min(input.crawlLimit, 250));
+  const deadline = Date.now() + (input.maxDurationMs ?? 9000);
+  const hasTime = (paddingMs = 0) => Date.now() + paddingMs < deadline;
   const sitemapDiscovery = await discoverSitemapUrls(websiteUrl, crawlLimit);
   const seeds: CrawlSeed[] = [
     { url: websiteUrl, source: "homepage" },
@@ -269,7 +286,9 @@ export async function crawlWebsite(input: {
   const statusCache = new Map<string, number | null>();
   const pages = new Map<string, CrawledPage>();
 
-  while (queue.length > 0 && crawled.size < crawlLimit) {
+  let stoppedEarly = false;
+
+  while (queue.length > 0 && crawled.size < crawlLimit && hasTime(1500)) {
     const currentSeed = queue.shift();
     if (!currentSeed || crawled.has(currentSeed.url)) {
       continue;
@@ -353,18 +372,26 @@ export async function crawlWebsite(input: {
     }
   }
 
+  if (queue.length > 0 && crawled.size < crawlLimit) {
+    stoppedEarly = true;
+  }
+
   const allLinks = [...pages.values()].flatMap((page) => page.links);
   const uniqueTargets = [...new Set(allLinks.map((link) => link.targetUrl))];
+  const knownPageTargets = new Set([...pages.keys()]);
+  const statusTargets = uniqueTargets
+    .filter((url) => !statusCache.has(url) && knownPageTargets.has(url))
+    .slice(0, 40);
 
-  await mapWithConcurrency(uniqueTargets, 8, async (url) => {
-    if (!statusCache.has(url)) {
+  if (hasTime(1500)) {
+    await mapWithConcurrency(statusTargets, 6, async (url) => {
       statusCache.set(url, await getStatusCode(url));
-    }
-  });
+    });
+  }
 
   for (const link of allLinks) {
     link.statusCode = statusCache.get(link.targetUrl) ?? null;
-    link.isBroken = link.statusCode === null || link.statusCode >= 400;
+    link.isBroken = link.statusCode !== null && link.statusCode >= 400;
   }
 
   for (const targetUrl of uniqueTargets) {
@@ -390,6 +417,7 @@ export async function crawlWebsite(input: {
       sitemapUrls: sitemapDiscovery.urls.length,
       sitemapsRead: sitemapDiscovery.sitemapCount,
       crawledFromSitemap: [...crawled].filter((url) => sitemapUrlSet.has(url)).length,
+      stoppedEarly,
     },
   };
 }

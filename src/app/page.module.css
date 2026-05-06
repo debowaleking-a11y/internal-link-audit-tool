@@ -128,6 +128,12 @@
   font-weight: 650;
 }
 
+.warning {
+  margin-top: 14px;
+  color: #806016;
+  font-weight: 650;
+}
+
 .statsGrid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));

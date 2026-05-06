@@ -28,7 +28,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await crawlWebsite({ websiteUrl, targetUrl, crawlLimit });
+    const result = await crawlWebsite({
+      websiteUrl,
+      targetUrl,
+      crawlLimit,
+      maxDurationMs: 9000,
+    });
     const createdAt = new Date().toISOString();
     const auditId =
       typeof crypto.randomUUID === "function"
