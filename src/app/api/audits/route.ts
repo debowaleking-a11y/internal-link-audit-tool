@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { crawlWebsite } from "@/lib/crawler";
-import { prisma } from "@/lib/prisma";
 import { normalizeUrl } from "@/lib/url";
 import { summarizeAudit } from "@/lib/audit-summary";
 
@@ -9,10 +8,10 @@ export const runtime = "nodejs";
 function parseLimit(value: unknown) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
-    return 25;
+    return 15;
   }
 
-  return Math.max(1, Math.min(Math.floor(parsed), 250));
+  return Math.max(1, Math.min(Math.floor(parsed), 50));
 }
 
 export async function POST(request: Request) {
@@ -29,103 +28,51 @@ export async function POST(request: Request) {
       );
     }
 
-    const audit = await prisma.auditRun.create({
-      data: {
+    const result = await crawlWebsite({ websiteUrl, targetUrl, crawlLimit });
+    const createdAt = new Date().toISOString();
+    const auditId =
+      typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `audit-${Date.now()}`;
+
+    const pages = result.pages
+      .sort((first, second) => first.url.localeCompare(second.url))
+      .map((page, index) => ({
+        id: `page-${index + 1}`,
+        url: page.url,
+        title: page.title,
+        statusCode: page.statusCode,
+        crawled: page.crawled,
+        error: page.error ?? null,
+      }));
+
+    const links = result.links
+      .sort((first, second) => first.sourceUrl.localeCompare(second.sourceUrl) || first.position - second.position)
+      .map((link, index) => ({
+        id: `link-${index + 1}`,
+        sourceUrl: link.sourceUrl,
+        targetUrl: link.targetUrl,
+        anchorText: link.anchorText,
+        position: link.position,
+        rel: link.rel,
+        follow: link.follow,
+        statusCode: link.statusCode,
+        pageTitle: link.pageTitle,
+        isBroken: link.isBroken,
+      }));
+
+    return NextResponse.json({
+      audit: {
+        id: auditId,
         websiteUrl,
         targetUrl,
         crawlLimit,
-        status: "running",
+        status: "completed",
+        error: null,
+        createdAt,
+        links,
       },
-    });
-
-    try {
-      const result = await crawlWebsite({ websiteUrl, targetUrl, crawlLimit });
-
-      await prisma.$transaction(async (tx) => {
-        for (const page of result.pages) {
-          await tx.page.upsert({
-            where: {
-              auditRunId_url: {
-                auditRunId: audit.id,
-                url: page.url,
-              },
-            },
-            update: {
-              title: page.title,
-              statusCode: page.statusCode,
-              crawled: page.crawled,
-              error: page.error,
-            },
-            create: {
-              auditRunId: audit.id,
-              url: page.url,
-              title: page.title,
-              statusCode: page.statusCode,
-              crawled: page.crawled,
-              error: page.error,
-            },
-          });
-        }
-
-        const sourcePages = await tx.page.findMany({
-          where: { auditRunId: audit.id },
-          select: { id: true, url: true },
-        });
-        const pageIdByUrl = new Map(sourcePages.map((page) => [page.url, page.id]));
-
-        if (result.links.length > 0) {
-          await tx.link.createMany({
-            data: result.links
-              .map((link) => {
-                const sourcePageId = pageIdByUrl.get(link.sourceUrl);
-                if (!sourcePageId) {
-                  return null;
-                }
-
-                return {
-                  auditRunId: audit.id,
-                  sourcePageId,
-                  sourceUrl: link.sourceUrl,
-                  targetUrl: link.targetUrl,
-                  anchorText: link.anchorText,
-                  position: link.position,
-                  rel: link.rel,
-                  follow: link.follow,
-                  statusCode: link.statusCode,
-                  pageTitle: link.pageTitle,
-                  isBroken: link.isBroken,
-                };
-              })
-              .filter((link): link is NonNullable<typeof link> => link !== null),
-          });
-        }
-
-        await tx.auditRun.update({
-          where: { id: audit.id },
-          data: { status: "completed" },
-        });
-      });
-    } catch (error) {
-      await prisma.auditRun.update({
-        where: { id: audit.id },
-        data: {
-          status: "failed",
-          error: error instanceof Error ? error.message : "Audit failed.",
-        },
-      });
-    }
-
-    const savedAudit = await prisma.auditRun.findUniqueOrThrow({
-      where: { id: audit.id },
-      include: {
-        pages: { orderBy: { url: "asc" } },
-        links: { orderBy: [{ sourceUrl: "asc" }, { position: "asc" }] },
-      },
-    });
-
-    return NextResponse.json({
-      audit: savedAudit,
-      summary: summarizeAudit(savedAudit.pages, savedAudit.links, savedAudit.targetUrl),
+      summary: summarizeAudit(pages, links, targetUrl),
     });
   } catch (error) {
     return NextResponse.json(
@@ -138,22 +85,4 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-}
-
-export async function GET() {
-  const audits = await prisma.auditRun.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 10,
-    include: {
-      pages: { orderBy: { url: "asc" } },
-      links: { orderBy: [{ sourceUrl: "asc" }, { position: "asc" }] },
-    },
-  });
-
-  return NextResponse.json({
-    audits: audits.map((audit) => ({
-      audit,
-      summary: summarizeAudit(audit.pages, audit.links, audit.targetUrl),
-    })),
-  });
 }

@@ -109,6 +109,10 @@
   white-space: nowrap;
 }
 
+.exportButton {
+  border: 0;
+}
+
 .form button:disabled {
   cursor: wait;
   opacity: 0.72;

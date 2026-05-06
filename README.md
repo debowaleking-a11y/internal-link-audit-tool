@@ -1,24 +1,22 @@
 # Internal Link Audit Tool
 
-A Next.js MVP for crawling a website, extracting internal links, finding link issues, and exporting results to CSV.
+A free-friendly Next.js MVP for crawling a website, extracting internal links, finding link issues, and exporting results to CSV.
 
 ## Features
 
 - Enter a website URL, target URL, and crawl limit.
 - Crawl same-domain internal URLs with a Cheerio-based Node crawler.
 - Capture source URL, target URL, anchor text, link position, rel, follow/nofollow, status code, and page title.
-- Store audit runs, pages, and links in SQLite through Prisma.
 - Filter by target URL, anchor text, broken links, nofollow links, orphan pages, and low-link pages.
 - Suggest pages that could link to the target URL with a simple anchor text recommendation.
-- Export the raw link table as CSV.
+- Export the current results to CSV in the browser.
 
 ## Tech Stack
 
 - Next.js App Router
 - TypeScript
-- Prisma
-- SQLite
 - Cheerio
+- Stateless API routes for free/serverless deployment
 
 ## Setup
 
@@ -28,27 +26,6 @@ Install dependencies:
 npm install
 ```
 
-Generate the Prisma client:
-
-```bash
-cp .env.example .env
-npm run prisma:generate
-```
-
-Create the local SQLite database:
-
-```bash
-sqlite3 prisma/dev.db < prisma/manual-init.sql
-```
-
-You can also try Prisma's normal schema push command:
-
-```bash
-npm run db:push
-```
-
-In this workspace, Prisma's schema engine validated the schema but failed during `db push`, so `prisma/manual-init.sql` is included as a reliable SQLite bootstrap.
-
 Start the app:
 
 ```bash
@@ -57,26 +34,21 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-## Deploy Online
+## Deploy Free On Netlify
 
-This app is best deployed as a single Node web service while it uses SQLite. Serverless hosts can run the UI and API, but SQLite needs a writable persistent disk for saved audit runs and CSV exports.
+This version does not need SQLite, Prisma, or a persistent disk. It is designed for experimentation on Netlify's Free plan, which currently lists $0/month with included build/deploy and serverless-function usage credits.
 
-The repo includes a `render.yaml` Blueprint for Render:
+Deploy steps:
 
-- Runtime: Node 22
-- Build command: `npm install && npm run prisma:generate && npm run build`
-- Start command: `npm run db:push && npm run start`
-- Persistent SQLite path: `/var/data/audit.db`
-- `DATABASE_URL`: `file:/var/data/audit.db`
+1. Push this repo to GitHub.
+2. In Netlify, choose **Add new project > Import an existing project**.
+3. Pick the GitHub repo.
+4. Use these build settings:
+   - Build command: `npm run build`
+   - Publish directory: `.next`
+5. Deploy.
 
-To deploy:
-
-1. Push this repo to GitHub, GitLab, or Bitbucket.
-2. In Render, choose **New > Blueprint**.
-3. Select the repo.
-4. Render will read `render.yaml`, create the web service, attach a persistent disk, and deploy it.
-
-For a cheaper serverless deployment later, switch production storage from SQLite to PostgreSQL and keep SQLite for local development.
+The included `netlify.toml` sets the same build command, publish directory, and Node version.
 
 ## Usage
 
@@ -85,7 +57,7 @@ For a cheaper serverless deployment later, switch production storage from SQLite
 3. Pick a crawl limit. Start small, then increase it after confirming the crawl pattern.
 4. Run the audit.
 5. Review extracted links, page issues, and anchor opportunities.
-6. Use **Export CSV** to download the link rows.
+6. Use **Export CSV** to download the current result rows.
 
 ## Scripts
 
@@ -93,15 +65,13 @@ For a cheaper serverless deployment later, switch production storage from SQLite
 npm run dev
 npm run build
 npm run lint
-npm run prisma:generate
-npm run db:push
-npm run db:studio
 ```
 
 ## Notes
 
+- Audit history is not saved in this free MVP. Results live in the current browser session.
 - The crawler only follows internal URLs on the same hostname as the website URL.
 - URL fragments are removed and trailing slashes are normalized.
 - Broken links are links with unknown status or HTTP status code `400+`.
 - Low-link pages are currently crawled pages with fewer than three outgoing internal links.
-- Google Sheets export is intentionally left for a later iteration; CSV export is the MVP path.
+- Google Sheets export and persistent audit history are intentionally left for a later database-backed version.

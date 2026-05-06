@@ -67,6 +67,47 @@ type PageFilterMode = "orphans" | "low-links";
 const defaultWebsite = "https://www.vidau.ai/";
 const defaultTarget = "https://www.vidau.ai/ai-video-generator/";
 
+function csvCell(value: string | number | boolean | null) {
+  const text = value === null ? "" : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function downloadCsv(audit: AuditResponse["audit"]) {
+  const header = [
+    "source_page",
+    "target_page",
+    "anchor_text",
+    "link_position",
+    "status_code",
+    "follow",
+    "rel",
+    "page_title",
+    "broken",
+  ];
+  const rows = audit.links.map((link) => [
+    link.sourceUrl,
+    link.targetUrl,
+    link.anchorText,
+    link.position,
+    link.statusCode,
+    link.follow ? "follow" : "nofollow",
+    link.rel,
+    link.pageTitle,
+    link.isBroken,
+  ]);
+  const csv = [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = `internal-link-audit-${audit.id}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 export default function Home() {
   const [websiteUrl, setWebsiteUrl] = useState(defaultWebsite);
   const [targetUrl, setTargetUrl] = useState(defaultTarget);
@@ -148,9 +189,9 @@ export default function Home() {
           </p>
         </div>
         {result ? (
-          <a className={styles.exportButton} href={`/api/audits/${result.audit.id}/export`}>
+          <button className={styles.exportButton} onClick={() => downloadCsv(result.audit)} type="button">
             Export CSV
-          </a>
+          </button>
         ) : null}
       </section>
 
