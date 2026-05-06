@@ -38,6 +38,7 @@
 }
 
 .auditPanel,
+.trackerPanel,
 .resultsCard,
 .sidePanel,
 .emptyState {
@@ -48,6 +49,11 @@
 }
 
 .auditPanel {
+  padding: 18px;
+}
+
+.trackerPanel {
+  margin-top: 18px;
   padding: 18px;
 }
 
@@ -88,6 +94,7 @@
 
 .form button,
 .exportButton,
+.trackerActions button,
 .segmented button,
 .segmentedWide button {
   min-height: 44px;
@@ -99,7 +106,8 @@
 }
 
 .form button,
-.exportButton {
+.exportButton,
+.trackerActions button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -107,6 +115,45 @@
   color: #ffffff;
   padding: 0 18px;
   white-space: nowrap;
+}
+
+.trackerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.snippet {
+  display: block;
+  overflow-x: auto;
+  border: 1px solid #d6e1dd;
+  border-radius: 8px;
+  background: #102324;
+  color: #e7f5ef;
+  padding: 14px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.trackerStatus {
+  margin-top: 10px;
+  color: #52686a;
+  font-weight: 700;
+}
+
+.miniStats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.trackedPages {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
 }
 
 .exportButton {
@@ -389,6 +436,8 @@
   }
 
   .statsGrid,
+  .miniStats,
+  .trackedPages,
   .filters {
     grid-template-columns: 1fr;
   }

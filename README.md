@@ -11,6 +11,7 @@ A free-friendly Next.js MVP for crawling a website, extracting internal links, f
 - Filter by target URL, anchor text, broken links, nofollow links, orphan pages, and low-link pages.
 - Suggest pages that could link to the target URL with a simple anchor text recommendation.
 - Export the current results to CSV in the browser.
+- Install a lightweight JavaScript snippet to report live internal links from pages that load.
 
 ## Tech Stack
 
@@ -60,6 +61,26 @@ The included `netlify.toml` sets the same build command, publish directory, and 
 5. Review extracted links, page issues, and anchor opportunities.
 6. Use **Export CSV** to download the current result rows.
 
+## Live Tracking Snippet
+
+Paste this snippet in the website `<head>`, footer, Google Tag Manager, or CMS global custom-code area:
+
+```html
+<script async src="https://internal-link-audit-tool.netlify.app/api/tracker.js"></script>
+```
+
+The snippet does not change the page visually. It reports:
+
+- Current page URL and title
+- Internal links on the page
+- Anchor text
+- Link position
+- Header, footer, nav, main, aside, or body placement
+- Follow/nofollow rel data
+- Internal link clicks
+
+The report API stores lightweight snapshots in Netlify Blobs for the project. JavaScript tracking only sees pages where the snippet actually runs, so use it alongside the sitemap crawler for broader coverage.
+
 ## Scripts
 
 ```bash
@@ -72,6 +93,7 @@ npm run lint
 
 - Audit history is not saved in this free MVP. Results live in the current browser session.
 - The crawler reads sitemap URLs first, then follows internal links from crawled pages.
+- The live snippet records visited pages, not unvisited orphan pages.
 - The crawler only follows internal URLs on the same hostname as the website URL.
 - The free deployment caps crawl requests at 200 pages to reduce timeout risk.
 - URL fragments are removed and trailing slashes are normalized.

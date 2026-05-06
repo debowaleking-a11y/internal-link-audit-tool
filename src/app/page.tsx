@@ -72,6 +72,41 @@ type PageFilterMode = "orphans" | "low-links";
 
 const defaultWebsite = "https://www.vidau.ai/";
 const defaultTarget = "https://www.vidau.ai/ai-video-generator/";
+const trackerSnippet = `<script async src="https://internal-link-audit-tool.netlify.app/api/tracker.js"></script>`;
+
+type TrackerSummary = {
+  counts: {
+    reports: number;
+    pages: number;
+    links: number;
+    clicks: number;
+  };
+  pages: Array<{
+    site: string;
+    pageUrl: string;
+    pageTitle: string;
+    links: Array<{
+      targetUrl: string;
+      anchorText: string;
+      position: number;
+      rel: string;
+      follow: boolean;
+      area: string;
+    }>;
+    reportCount: number;
+    lastSeen: string;
+  }>;
+  links: Array<{
+    pageUrl: string;
+    pageTitle: string;
+    targetUrl: string;
+    anchorText: string;
+    position: number;
+    rel: string;
+    follow: boolean;
+    area: string;
+  }>;
+};
 
 function csvCell(value: string | number | boolean | null) {
   const text = value === null ? "" : String(value);
@@ -123,6 +158,8 @@ export default function Home() {
   const [mode, setMode] = useState<FilterMode>("target");
   const [pageMode, setPageMode] = useState<PageFilterMode>("orphans");
   const [result, setResult] = useState<AuditResponse | null>(null);
+  const [trackerSummary, setTrackerSummary] = useState<TrackerSummary | null>(null);
+  const [trackerStatus, setTrackerStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -151,6 +188,29 @@ export default function Home() {
       setError(requestError instanceof Error ? requestError.message : "Audit failed.");
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function copySnippet() {
+    await navigator.clipboard.writeText(trackerSnippet);
+    setTrackerStatus("Snippet copied.");
+  }
+
+  async function loadTrackerReports() {
+    setTrackerStatus("Loading reports...");
+
+    try {
+      const response = await fetch("/api/track/reports?limit=100");
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not load tracker reports.");
+      }
+
+      setTrackerSummary(data.summary);
+      setTrackerStatus("Reports loaded.");
+    } catch (reportError) {
+      setTrackerStatus(reportError instanceof Error ? reportError.message : "Could not load tracker reports.");
     }
   }
 
@@ -231,6 +291,40 @@ export default function Home() {
           <p className={styles.warning}>
             Returned a partial audit before the free hosting time limit. Lower the crawl limit for a fuller pass.
           </p>
+        ) : null}
+      </section>
+
+      <section className={styles.trackerPanel}>
+        <div className={styles.cardHeader}>
+          <div>
+            <h2>Live tracking snippet</h2>
+            <p>Paste this once in the site head or footer to report internal links from pages as they load.</p>
+          </div>
+          <div className={styles.trackerActions}>
+            <button onClick={copySnippet} type="button">Copy snippet</button>
+            <button onClick={loadTrackerReports} type="button">Refresh reports</button>
+          </div>
+        </div>
+        <code className={styles.snippet}>{trackerSnippet}</code>
+        {trackerStatus ? <p className={styles.trackerStatus}>{trackerStatus}</p> : null}
+        {trackerSummary ? (
+          <>
+            <div className={styles.miniStats}>
+              <Stat label="Reports" value={trackerSummary.counts.reports} />
+              <Stat label="Tracked pages" value={trackerSummary.counts.pages} />
+              <Stat label="Tracked links" value={trackerSummary.counts.links} />
+              <Stat label="Internal clicks" value={trackerSummary.counts.clicks} />
+            </div>
+            <div className={styles.trackedPages}>
+              {trackerSummary.pages.slice(0, 6).map((page) => (
+                <article key={page.pageUrl} className={styles.issueItem}>
+                  <a href={page.pageUrl} target="_blank" rel="noreferrer">{page.pageTitle || page.pageUrl}</a>
+                  <p>{page.links.length} internal links · {page.reportCount} reports · {new Date(page.lastSeen).toLocaleString()}</p>
+                </article>
+              ))}
+              {trackerSummary.pages.length === 0 ? <p className={styles.empty}>No live snippet reports yet.</p> : null}
+            </div>
+          </>
         ) : null}
       </section>
 
