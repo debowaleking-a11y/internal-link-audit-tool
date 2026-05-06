@@ -21,6 +21,22 @@ export type TrackerPayload = {
   receivedAt: string;
 };
 
+function normalizeForCompare(value: string) {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    url.hostname = url.hostname.toLowerCase();
+
+    if (url.pathname !== "/" && url.pathname.endsWith("/")) {
+      url.pathname = url.pathname.slice(0, -1);
+    }
+
+    return url.toString();
+  } catch {
+    return value.trim().toLowerCase();
+  }
+}
+
 function safeKeyPart(value: string) {
   return value
     .toLowerCase()
@@ -110,5 +126,58 @@ export function summarizeTrackerPayloads(payloads: Array<{ key: string; data: Tr
     },
     pages,
     links,
+  };
+}
+
+export function findInboundLinksForTarget(
+  payloads: Array<{ key: string; data: TrackerPayload }>,
+  targetUrl: string,
+) {
+  const normalizedTarget = normalizeForCompare(targetUrl);
+  const sourceMap = new Map<string, {
+    pageUrl: string;
+    pageTitle: string;
+    site: string;
+    lastSeen: string;
+    reportCount: number;
+    links: TrackedLink[];
+  }>();
+
+  for (const { data } of payloads) {
+    const matchingLinks = data.links.filter((link) => normalizeForCompare(link.targetUrl) === normalizedTarget);
+    if (matchingLinks.length === 0) {
+      continue;
+    }
+
+    const existing = sourceMap.get(data.pageUrl);
+    if (!existing) {
+      sourceMap.set(data.pageUrl, {
+        pageUrl: data.pageUrl,
+        pageTitle: data.pageTitle,
+        site: data.site,
+        lastSeen: data.receivedAt,
+        reportCount: 1,
+        links: matchingLinks,
+      });
+      continue;
+    }
+
+    existing.reportCount += 1;
+    if (data.receivedAt > existing.lastSeen) {
+      existing.lastSeen = data.receivedAt;
+      existing.pageTitle = data.pageTitle;
+      existing.links = matchingLinks;
+    }
+  }
+
+  const sources = [...sourceMap.values()].sort((first, second) => second.lastSeen.localeCompare(first.lastSeen));
+
+  return {
+    targetUrl: normalizedTarget,
+    counts: {
+      sourcePages: sources.length,
+      matchingLinks: sources.reduce((total, source) => total + source.links.length, 0),
+    },
+    sources,
   };
 }

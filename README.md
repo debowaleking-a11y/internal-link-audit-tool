@@ -12,6 +12,7 @@ A free-friendly Next.js MVP for crawling a website, extracting internal links, f
 - Suggest pages that could link to the target URL with a simple anchor text recommendation.
 - Export the current results to CSV in the browser.
 - Install a lightweight JavaScript snippet to report live internal links from pages that load.
+- Look up inbound internal links to a supplied target URL from live snippet reports.
 
 ## Tech Stack
 
@@ -80,6 +81,8 @@ The snippet does not change the page visually. It reports:
 - Internal link clicks
 
 The report API stores lightweight snapshots in Netlify Blobs for the project. JavaScript tracking only sees pages where the snippet actually runs, so use it alongside the sitemap crawler for broader coverage.
+
+After reports exist, enter a target URL in the dashboard's live tracking panel and click **Refresh reports**. The tool will show every tracked source page where that URL appears as an internal link, including anchor text, placement, position, and follow/nofollow.
 
 ## Scripts
 

@@ -65,6 +65,7 @@
 }
 
 .form label,
+.inboundLookup label,
 .filters label {
   display: grid;
   gap: 8px;
@@ -74,6 +75,7 @@
 }
 
 .form input,
+.inboundLookup input,
 .filters input {
   width: 100%;
   min-height: 44px;
@@ -87,6 +89,7 @@
 }
 
 .form input:focus,
+.inboundLookup input:focus,
 .filters input:focus {
   border-color: #397b77;
   box-shadow: 0 0 0 3px rgba(57, 123, 119, 0.16);
@@ -154,6 +157,19 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-top: 14px;
+}
+
+.inboundLookup {
+  margin-top: 14px;
+}
+
+.inboundResults {
+  margin-top: 18px;
+}
+
+.inboundResults h3 {
+  font-size: 18px;
+  line-height: 1.2;
 }
 
 .exportButton {

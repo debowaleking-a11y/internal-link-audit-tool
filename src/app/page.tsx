@@ -108,6 +108,29 @@ type TrackerSummary = {
   }>;
 };
 
+type InboundTrackerResult = {
+  targetUrl: string;
+  counts: {
+    sourcePages: number;
+    matchingLinks: number;
+  };
+  sources: Array<{
+    pageUrl: string;
+    pageTitle: string;
+    site: string;
+    lastSeen: string;
+    reportCount: number;
+    links: Array<{
+      targetUrl: string;
+      anchorText: string;
+      position: number;
+      rel: string;
+      follow: boolean;
+      area: string;
+    }>;
+  }>;
+};
+
 function csvCell(value: string | number | boolean | null) {
   const text = value === null ? "" : String(value);
   return `"${text.replace(/"/g, '""')}"`;
@@ -159,6 +182,8 @@ export default function Home() {
   const [pageMode, setPageMode] = useState<PageFilterMode>("orphans");
   const [result, setResult] = useState<AuditResponse | null>(null);
   const [trackerSummary, setTrackerSummary] = useState<TrackerSummary | null>(null);
+  const [inboundTracker, setInboundTracker] = useState<InboundTrackerResult | null>(null);
+  const [trackerTargetUrl, setTrackerTargetUrl] = useState(defaultTarget);
   const [trackerStatus, setTrackerStatus] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -200,7 +225,11 @@ export default function Home() {
     setTrackerStatus("Loading reports...");
 
     try {
-      const response = await fetch("/api/track/reports?limit=100");
+      const params = new URLSearchParams({
+        limit: "100",
+        targetUrl: trackerTargetUrl,
+      });
+      const response = await fetch(`/api/track/reports?${params.toString()}`);
       const data = await response.json();
 
       if (!response.ok) {
@@ -208,6 +237,7 @@ export default function Home() {
       }
 
       setTrackerSummary(data.summary);
+      setInboundTracker(data.inbound);
       setTrackerStatus("Reports loaded.");
     } catch (reportError) {
       setTrackerStatus(reportError instanceof Error ? reportError.message : "Could not load tracker reports.");
@@ -306,6 +336,12 @@ export default function Home() {
           </div>
         </div>
         <code className={styles.snippet}>{trackerSnippet}</code>
+        <div className={styles.inboundLookup}>
+          <label>
+            Target URL for inbound internal links
+            <input value={trackerTargetUrl} onChange={(event) => setTrackerTargetUrl(event.target.value)} />
+          </label>
+        </div>
         {trackerStatus ? <p className={styles.trackerStatus}>{trackerStatus}</p> : null}
         {trackerSummary ? (
           <>
@@ -315,6 +351,51 @@ export default function Home() {
               <Stat label="Tracked links" value={trackerSummary.counts.links} />
               <Stat label="Internal clicks" value={trackerSummary.counts.clicks} />
             </div>
+            {inboundTracker ? (
+              <div className={styles.inboundResults}>
+                <div className={styles.cardHeader}>
+                  <div>
+                    <h3>Inbound internal links to target</h3>
+                    <p>
+                      {inboundTracker.counts.sourcePages} source pages · {inboundTracker.counts.matchingLinks} matching links
+                    </p>
+                  </div>
+                </div>
+                <div className={styles.tableWrap}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Source page</th>
+                        <th>Anchor</th>
+                        <th>Area</th>
+                        <th>Position</th>
+                        <th>Follow</th>
+                        <th>Last seen</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {inboundTracker.sources.flatMap((source) =>
+                        source.links.map((link) => (
+                          <tr key={`${source.pageUrl}-${link.position}-${link.anchorText}`}>
+                            <td><a href={source.pageUrl} target="_blank" rel="noreferrer">{source.pageTitle || source.pageUrl}</a></td>
+                            <td>{link.anchorText || <span className={styles.muted}>No text</span>}</td>
+                            <td>{link.area}</td>
+                            <td>{link.position}</td>
+                            <td>{link.follow ? "follow" : "nofollow"}</td>
+                            <td>{new Date(source.lastSeen).toLocaleString()}</td>
+                          </tr>
+                        )),
+                      )}
+                      {inboundTracker.sources.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className={styles.empty}>No tracked pages currently link to this target URL.</td>
+                        </tr>
+                      ) : null}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
             <div className={styles.trackedPages}>
               {trackerSummary.pages.slice(0, 6).map((page) => (
                 <article key={page.pageUrl} className={styles.issueItem}>
