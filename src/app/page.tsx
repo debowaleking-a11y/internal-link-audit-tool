@@ -39,6 +39,11 @@ type AuditResponse = {
     status: string;
     error: string | null;
     createdAt: string;
+    discovery?: {
+      sitemapUrls: number;
+      sitemapsRead: number;
+      crawledFromSitemap: number;
+    };
     links: LinkRow[];
   };
   summary: {
@@ -111,7 +116,7 @@ function downloadCsv(audit: AuditResponse["audit"]) {
 export default function Home() {
   const [websiteUrl, setWebsiteUrl] = useState(defaultWebsite);
   const [targetUrl, setTargetUrl] = useState(defaultTarget);
-  const [crawlLimit, setCrawlLimit] = useState(25);
+  const [crawlLimit, setCrawlLimit] = useState(50);
   const [anchorFilter, setAnchorFilter] = useState("");
   const [targetFilter, setTargetFilter] = useState(defaultTarget);
   const [mode, setMode] = useState<FilterMode>("target");
@@ -209,7 +214,7 @@ export default function Home() {
             Crawl limit
             <input
               min={1}
-              max={250}
+              max={200}
               type="number"
               value={crawlLimit}
               onChange={(event) => setCrawlLimit(Number(event.target.value))}
@@ -228,9 +233,9 @@ export default function Home() {
             <Stat label="Crawled pages" value={result.summary.counts.crawledPages} />
             <Stat label="Internal links" value={result.summary.counts.links} />
             <Stat label="Links to target" value={result.summary.counts.linksToTarget} />
+            <Stat label="Sitemap pages" value={result.audit.discovery?.sitemapUrls ?? 0} />
             <Stat label="Broken links" value={result.summary.counts.brokenLinks} tone={result.summary.counts.brokenLinks > 0 ? "warn" : "good"} />
             <Stat label="Orphan pages" value={result.summary.counts.orphanPages} />
-            <Stat label="Low-link pages" value={result.summary.counts.lowLinkPages} />
           </section>
 
           <section className={styles.workspace}>

@@ -5,7 +5,8 @@ A free-friendly Next.js MVP for crawling a website, extracting internal links, f
 ## Features
 
 - Enter a website URL, target URL, and crawl limit.
-- Crawl same-domain internal URLs with a Cheerio-based Node crawler.
+- Discover pages from `robots.txt` sitemap declarations and `/sitemap.xml`.
+- Crawl same-domain internal URLs with a sitemap-first Cheerio-based Node crawler.
 - Capture source URL, target URL, anchor text, link position, rel, follow/nofollow, status code, and page title.
 - Filter by target URL, anchor text, broken links, nofollow links, orphan pages, and low-link pages.
 - Suggest pages that could link to the target URL with a simple anchor text recommendation.
@@ -70,7 +71,9 @@ npm run lint
 ## Notes
 
 - Audit history is not saved in this free MVP. Results live in the current browser session.
+- The crawler reads sitemap URLs first, then follows internal links from crawled pages.
 - The crawler only follows internal URLs on the same hostname as the website URL.
+- The free deployment caps crawl requests at 200 pages to reduce timeout risk.
 - URL fragments are removed and trailing slashes are normalized.
 - Broken links are links with unknown status or HTTP status code `400+`.
 - Low-link pages are currently crawled pages with fewer than three outgoing internal links.

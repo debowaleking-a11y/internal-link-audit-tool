@@ -8,10 +8,10 @@ export const runtime = "nodejs";
 function parseLimit(value: unknown) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
-    return 15;
+    return 50;
   }
 
-  return Math.max(1, Math.min(Math.floor(parsed), 50));
+  return Math.max(1, Math.min(Math.floor(parsed), 200));
 }
 
 export async function POST(request: Request) {
@@ -70,6 +70,7 @@ export async function POST(request: Request) {
         status: "completed",
         error: null,
         createdAt,
+        discovery: result.discovery,
         links,
       },
       summary: summarizeAudit(pages, links, targetUrl),

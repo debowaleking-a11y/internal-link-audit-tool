@@ -28,6 +28,11 @@ type FetchResult = {
   contentType: string;
 };
 
+type CrawlSeed = {
+  url: string;
+  source: "homepage" | "sitemap" | "link";
+};
+
 async function fetchPage(url: string): Promise<FetchResult> {
   const response = await fetch(url, {
     redirect: "follow",
@@ -45,6 +50,174 @@ async function fetchPage(url: string): Promise<FetchResult> {
     html,
     contentType,
   };
+}
+
+async function fetchText(url: string) {
+  const response = await fetch(url, {
+    redirect: "follow",
+    headers: {
+      "user-agent": "InternalLinkAuditBot/1.0 (+https://localhost)",
+      accept: "application/xml,text/xml,text/plain,*/*",
+    },
+  });
+
+  if (!response.ok) {
+    return "";
+  }
+
+  return response.text();
+}
+
+async function findSitemapLocations(websiteUrl: string) {
+  const website = new URL(websiteUrl);
+  const candidates = new Set<string>();
+
+  candidates.add(normalizeUrl("/sitemap.xml", websiteUrl));
+
+  try {
+    const robotsUrl = `${website.origin}/robots.txt`;
+    const robots = await fetchText(robotsUrl);
+
+    for (const line of robots.split(/\r?\n/)) {
+      const match = line.match(/^\s*sitemap:\s*(.+)\s*$/i);
+      if (!match) {
+        continue;
+      }
+
+      try {
+        const sitemapUrl = normalizeUrl(match[1].trim(), websiteUrl);
+        if (isSameDomain(sitemapUrl, websiteUrl)) {
+          candidates.add(sitemapUrl);
+        }
+      } catch {
+        // Ignore malformed sitemap declarations.
+      }
+    }
+  } catch {
+    // robots.txt is optional; fall back to the default sitemap location.
+  }
+
+  return [...candidates];
+}
+
+async function readSitemapUrls(input: {
+  sitemapUrl: string;
+  websiteUrl: string;
+  limit: number;
+  visitedSitemaps: Set<string>;
+}) {
+  if (input.visitedSitemaps.has(input.sitemapUrl) || input.visitedSitemaps.size >= 10) {
+    return [];
+  }
+
+  input.visitedSitemaps.add(input.sitemapUrl);
+
+  try {
+    const xml = await fetchText(input.sitemapUrl);
+    if (!xml) {
+      return [];
+    }
+
+    const $ = cheerio.load(xml, { xmlMode: true });
+    const sitemapEntries = $("sitemap > loc")
+      .map((_, element) => $(element).text().trim())
+      .get();
+
+    if (sitemapEntries.length > 0) {
+      const urls: string[] = [];
+
+      for (const sitemapEntry of sitemapEntries) {
+        if (urls.length >= input.limit) {
+          break;
+        }
+
+        try {
+          const childSitemapUrl = normalizeUrl(sitemapEntry, input.websiteUrl);
+          if (!isSameDomain(childSitemapUrl, input.websiteUrl)) {
+            continue;
+          }
+
+          const childUrls = await readSitemapUrls({
+            sitemapUrl: childSitemapUrl,
+            websiteUrl: input.websiteUrl,
+            limit: input.limit - urls.length,
+            visitedSitemaps: input.visitedSitemaps,
+          });
+          urls.push(...childUrls);
+        } catch {
+          // Ignore malformed child sitemap URLs.
+        }
+      }
+
+      return urls;
+    }
+
+    return $("url > loc")
+      .map((_, element) => $(element).text().trim())
+      .get()
+      .flatMap((url) => {
+        try {
+          const normalized = normalizeUrl(url, input.websiteUrl);
+          return isSameDomain(normalized, input.websiteUrl) ? [normalized] : [];
+        } catch {
+          return [];
+        }
+      })
+      .slice(0, input.limit);
+  } catch {
+    return [];
+  }
+}
+
+async function discoverSitemapUrls(websiteUrl: string, limit: number) {
+  const sitemapLocations = await findSitemapLocations(websiteUrl);
+  const visitedSitemaps = new Set<string>();
+  const discovered = new Set<string>();
+
+  for (const sitemapUrl of sitemapLocations) {
+    if (discovered.size >= limit) {
+      break;
+    }
+
+    const urls = await readSitemapUrls({
+      sitemapUrl,
+      websiteUrl,
+      limit: limit - discovered.size,
+      visitedSitemaps,
+    });
+
+    for (const url of urls) {
+      discovered.add(url);
+    }
+  }
+
+  return {
+    urls: [...discovered],
+    sitemapCount: visitedSitemaps.size,
+  };
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<R>,
+) {
+  const results: R[] = [];
+  let index = 0;
+
+  async function runWorker() {
+    while (index < items.length) {
+      const currentIndex = index;
+      index += 1;
+      results[currentIndex] = await worker(items[currentIndex]);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => runWorker()),
+  );
+
+  return results;
 }
 
 async function getStatusCode(url: string) {
@@ -83,18 +256,26 @@ export async function crawlWebsite(input: {
   const websiteUrl = normalizeUrl(input.websiteUrl);
   const normalizedTarget = normalizeUrl(input.targetUrl, websiteUrl);
   const crawlLimit = Math.max(1, Math.min(input.crawlLimit, 250));
-  const queue = [websiteUrl];
-  const queued = new Set(queue);
+  const sitemapDiscovery = await discoverSitemapUrls(websiteUrl, crawlLimit);
+  const seeds: CrawlSeed[] = [
+    { url: websiteUrl, source: "homepage" },
+    ...sitemapDiscovery.urls
+      .filter((url) => url !== websiteUrl)
+      .map((url) => ({ url, source: "sitemap" }) satisfies CrawlSeed),
+  ];
+  const queue = seeds.slice(0, crawlLimit);
+  const queued = new Set(queue.map((seed) => seed.url));
   const crawled = new Set<string>();
   const statusCache = new Map<string, number | null>();
   const pages = new Map<string, CrawledPage>();
 
   while (queue.length > 0 && crawled.size < crawlLimit) {
-    const currentUrl = queue.shift();
-    if (!currentUrl || crawled.has(currentUrl)) {
+    const currentSeed = queue.shift();
+    if (!currentSeed || crawled.has(currentSeed.url)) {
       continue;
     }
 
+    const currentUrl = currentSeed.url;
     crawled.add(currentUrl);
 
     try {
@@ -146,7 +327,7 @@ export async function crawlWebsite(input: {
 
           if (!queued.has(targetUrl) && !crawled.has(targetUrl) && queue.length + crawled.size < crawlLimit) {
             queued.add(targetUrl);
-            queue.push(targetUrl);
+            queue.push({ url: targetUrl, source: "link" });
           }
         } catch {
           // Ignore malformed hrefs; the UI focuses on crawlable internal links.
@@ -175,13 +356,11 @@ export async function crawlWebsite(input: {
   const allLinks = [...pages.values()].flatMap((page) => page.links);
   const uniqueTargets = [...new Set(allLinks.map((link) => link.targetUrl))];
 
-  await Promise.all(
-    uniqueTargets.map(async (url) => {
-      if (!statusCache.has(url)) {
-        statusCache.set(url, await getStatusCode(url));
-      }
-    }),
-  );
+  await mapWithConcurrency(uniqueTargets, 8, async (url) => {
+    if (!statusCache.has(url)) {
+      statusCache.set(url, await getStatusCode(url));
+    }
+  });
 
   for (const link of allLinks) {
     link.statusCode = statusCache.get(link.targetUrl) ?? null;
@@ -200,11 +379,18 @@ export async function crawlWebsite(input: {
     }
   }
 
+  const sitemapUrlSet = new Set(sitemapDiscovery.urls);
+
   return {
     websiteUrl,
     targetUrl: normalizedTarget,
     pages: [...pages.values()],
     links: allLinks,
+    discovery: {
+      sitemapUrls: sitemapDiscovery.urls.length,
+      sitemapsRead: sitemapDiscovery.sitemapCount,
+      crawledFromSitemap: [...crawled].filter((url) => sitemapUrlSet.has(url)).length,
+    },
   };
 }
 
