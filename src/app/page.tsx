@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, type ReactNode, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import styles from "./page.module.css";
 import { hostnameFromUrl, trackerIdForWebsite } from "@/lib/site-id";
 
@@ -282,6 +282,11 @@ export default function Home() {
   const [copiedSnippet, setCopiedSnippet] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const siteHostname = hostnameFromUrl(websiteUrl);
+  const trackerId = trackerIdForWebsite(websiteUrl);
+  const headerSnippet = headerSnippetFor(trackerId);
+  const footerSnippet = footerSnippetFor(trackerId);
+  const isConnected = trackerConnection?.connected ?? false;
 
   async function runAudit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -316,8 +321,10 @@ export default function Home() {
     setCopiedSnippet(`${label} snippet copied`);
   }
 
-  async function loadTrackerReports() {
-    setTrackerStatus("Loading live reports...");
+  const loadTrackerReports = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setTrackerStatus("Loading live reports...");
+    }
 
     try {
       const params = new URLSearchParams({
@@ -340,15 +347,27 @@ export default function Home() {
       setTrackerSummary(data.summary);
       setTrackerConnection(data.connection);
       setInboundTracker(data.inbound);
-      setTrackerStatus(
-        data.connection?.connected
-          ? `Connected. Last signal: ${new Date(data.connection.lastSeen).toLocaleString()}.`
-          : "Waiting for this website to load the snippet.",
-      );
+      if (!options?.silent) {
+        setTrackerStatus(
+          data.connection?.connected
+            ? `Connected. Last signal: ${new Date(data.connection.lastSeen).toLocaleString()}.`
+            : "Waiting for this website to load the snippet.",
+        );
+      }
     } catch (reportError) {
-      setTrackerStatus(reportError instanceof Error ? reportError.message : "Could not load tracker reports.");
+      if (!options?.silent) {
+        setTrackerStatus(reportError instanceof Error ? reportError.message : "Could not load tracker reports.");
+      }
     }
-  }
+  }, [siteHostname, trackerId, trackerTargetUrl]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadTrackerReports({ silent: true });
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [loadTrackerReports]);
 
   async function startBackgroundCrawl() {
     setBackgroundStatus("Starting background crawl...");
@@ -453,11 +472,6 @@ export default function Home() {
   const inboundSources = inboundTracker?.sources ?? [];
   const crawlCounts = result?.summary.counts;
   const trackerCounts = trackerSummary?.counts;
-  const siteHostname = hostnameFromUrl(websiteUrl);
-  const trackerId = trackerIdForWebsite(websiteUrl);
-  const headerSnippet = headerSnippetFor(trackerId);
-  const footerSnippet = footerSnippetFor(trackerId);
-  const isConnected = trackerConnection?.connected ?? false;
   const pageByUrl = useMemo(() => new Map((result?.summary.pages ?? []).map((page) => [page.url, page])), [result]);
   const lowEngagementPages = trackerSummary?.pages.filter((page) => page.reportCount <= 1).length ?? 0;
   const issueOptions = [
@@ -519,7 +533,7 @@ export default function Home() {
           </div>
           <div className={styles.topActions}>
             {result ? <button onClick={() => downloadCsv(result.audit)} type="button">Export CSV</button> : null}
-            <button onClick={loadTrackerReports} type="button">Refresh reports</button>
+            <button onClick={() => loadTrackerReports()} type="button">Refresh reports</button>
           </div>
         </header>
 
@@ -604,7 +618,7 @@ export default function Home() {
               <h2>Inbound internal links to a target URL</h2>
               <p>Enter a target URL and refresh reports to see source pages where the snippet found that exact internal link.</p>
             </div>
-            <button onClick={loadTrackerReports} type="button">Refresh reports</button>
+            <button onClick={() => loadTrackerReports()} type="button">Refresh reports</button>
           </div>
           <div className={styles.lookupRow}>
             <label>
@@ -700,7 +714,7 @@ export default function Home() {
               <h2>Live tracking events</h2>
               <p>Script data is stored separately from crawler data and excludes passwords, form values, payments, and private user content.</p>
             </div>
-            <button onClick={loadTrackerReports} type="button">Refresh reports</button>
+            <button onClick={() => loadTrackerReports()} type="button">Refresh reports</button>
           </div>
           <div className={styles.connectionGrid}>
             <div className={styles.connectionCard}>
