@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       const response = await fetch(`${origin}/.netlify/functions/crawl-background`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ jobId: job.id }),
+        body: JSON.stringify({ jobId: job.id, job }),
       });
 
       if (!response.ok && response.status !== 202) {
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       void runCrawlJob(job.id);
     }
 
-    return NextResponse.json({ job }, { status: 202 });
+    return NextResponse.json({ job }, { status: 202, headers: { "cache-control": "no-store, max-age=0" } });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not create background crawl job." },

@@ -7,12 +7,13 @@ const crawlBackground = async (request: Request) => {
 
   const body = await request.json();
   const jobId = String(body.jobId ?? "");
+  const job = body.job;
 
   if (!jobId) {
     return new Response("Missing job ID", { status: 400 });
   }
 
-  await runCrawlJob(jobId);
+  await runCrawlJob(jobId, job);
   return new Response(null, { status: 202 });
 };
 

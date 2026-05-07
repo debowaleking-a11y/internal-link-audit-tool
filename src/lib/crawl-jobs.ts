@@ -82,11 +82,15 @@ export async function createCrawlJob(input: { websiteUrl: string; crawlLimit: nu
   return saveCrawlJob(job);
 }
 
-export async function runCrawlJob(jobId: string) {
-  const existing = await getCrawlJob(jobId);
+export async function runCrawlJob(jobId: string, fallbackJob?: BackgroundCrawlJob) {
+  const existing = await getCrawlJob(jobId) ?? fallbackJob ?? null;
 
   if (!existing) {
     throw new Error(`Crawl job ${jobId} was not found.`);
+  }
+
+  if (fallbackJob) {
+    await saveCrawlJob(existing);
   }
 
   const runningJob: BackgroundCrawlJob = {

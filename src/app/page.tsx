@@ -407,10 +407,13 @@ export default function Home() {
     setBackgroundStatus("Checking background crawl...");
 
     try {
-      const response = await fetch(`/api/crawl-jobs/${backgroundJob.id}`);
+      const response = await fetch(`/api/crawl-jobs/${backgroundJob.id}?_=${Date.now()}`, { cache: "no-store" });
       const data = await response.json();
 
       if (!response.ok) {
+        if (response.status === 404) {
+          setBackgroundJob(null);
+        }
         throw new Error(data.error ?? "Could not load background crawl.");
       }
 

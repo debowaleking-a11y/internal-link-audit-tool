@@ -8,8 +8,11 @@ export async function GET(_request: Request, context: { params: Promise<{ jobId:
   const job = await getCrawlJob(jobId);
 
   if (!job) {
-    return NextResponse.json({ error: "Crawl job not found." }, { status: 404 });
+    return NextResponse.json(
+      { error: "Crawl job not found. Start a new background crawl and refresh that new job." },
+      { status: 404, headers: { "cache-control": "no-store, max-age=0" } },
+    );
   }
 
-  return NextResponse.json({ job });
+  return NextResponse.json({ job }, { headers: { "cache-control": "no-store, max-age=0" } });
 }
