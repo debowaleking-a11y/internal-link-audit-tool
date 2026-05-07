@@ -1,15 +1,16 @@
 export const runtime = "nodejs";
 
+const canonicalTrackerOrigin = "https://internal-link-audit-tool.netlify.app";
+
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
-  const origin = requestUrl.origin;
   const trackerId = requestUrl.searchParams.get("id")?.trim().toUpperCase() || "ILA-DEMO";
   const script = `
 (function () {
   if (window.__internalLinkAuditInstalled) return;
   window.__internalLinkAuditInstalled = true;
 
-  var endpoint = ${JSON.stringify(`${origin}/api/track`)};
+  var endpoint = ${JSON.stringify(`${canonicalTrackerOrigin}/api/track`)};
   var trackerId = ${JSON.stringify(trackerId)};
   var site = location.hostname;
   var maxScrollDepth = 0;
@@ -17,6 +18,11 @@ export async function GET(request: Request) {
 
   function cleanText(value) {
     return String(value || "").replace(/\\s+/g, " ").trim();
+  }
+
+  function logTrackingFailure(message, details) {
+    if (!window.console || !console.warn) return;
+    console.warn("[Internal Link Audit]", message, details || "");
   }
 
   function areaFor(link) {
@@ -124,7 +130,15 @@ export async function GET(request: Request) {
     var body = JSON.stringify(payload);
     if (navigator.sendBeacon) {
       var blob = new Blob([body], { type: "application/json" });
-      navigator.sendBeacon(endpoint, blob);
+      var queued = navigator.sendBeacon(endpoint, blob);
+      if (!queued) {
+        logTrackingFailure("sendBeacon could not queue tracking event.", {
+          endpoint: endpoint,
+          trackerId: trackerId,
+          eventType: payload.eventType,
+          pageUrl: payload.pageUrl
+        });
+      }
       return;
     }
 
@@ -133,7 +147,25 @@ export async function GET(request: Request) {
       headers: { "content-type": "application/json" },
       body: body,
       keepalive: true
-    }).catch(function () {});
+    }).then(function (response) {
+      if (!response.ok) {
+        logTrackingFailure("Tracking request failed.", {
+          endpoint: endpoint,
+          status: response.status,
+          trackerId: trackerId,
+          eventType: payload.eventType,
+          pageUrl: payload.pageUrl
+        });
+      }
+    }).catch(function (error) {
+      logTrackingFailure("Tracking request errored.", {
+        endpoint: endpoint,
+        trackerId: trackerId,
+        eventType: payload.eventType,
+        pageUrl: payload.pageUrl,
+        error: error && error.message ? error.message : error
+      });
+    });
   }
 
   if (document.readyState === "loading") {
