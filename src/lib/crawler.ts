@@ -50,7 +50,16 @@ function timeoutSignal(ms: number) {
   return controller.signal;
 }
 
-async function fetchPage(url: string): Promise<FetchResult> {
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise
+      .then(resolve, reject)
+      .finally(() => clearTimeout(timer));
+  });
+}
+
+async function fetchPageInner(url: string): Promise<FetchResult> {
   const response = await fetch(url, {
     redirect: "follow",
     signal: timeoutSignal(6000),
@@ -70,7 +79,11 @@ async function fetchPage(url: string): Promise<FetchResult> {
   };
 }
 
-async function fetchText(url: string) {
+async function fetchPage(url: string): Promise<FetchResult> {
+  return withTimeout(fetchPageInner(url), 9000, `Timed out while crawling ${url}.`);
+}
+
+async function fetchTextInner(url: string) {
   const response = await fetch(url, {
     redirect: "follow",
     signal: timeoutSignal(5000),
@@ -85,6 +98,10 @@ async function fetchText(url: string) {
   }
 
   return response.text();
+}
+
+async function fetchText(url: string) {
+  return withTimeout(fetchTextInner(url), 7000, `Timed out while reading ${url}.`);
 }
 
 async function findSitemapLocations(websiteUrl: string) {

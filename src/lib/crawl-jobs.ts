@@ -10,6 +10,7 @@ export type BackgroundCrawlJob = {
   crawlLimit: number;
   status: "queued" | "running" | "completed" | "failed";
   createdAt: string;
+  updatedAt: string;
   startedAt: string | null;
   finishedAt: string | null;
   progress: {
@@ -40,14 +41,19 @@ export function makeJobId() {
 }
 
 export async function saveCrawlJob(job: BackgroundCrawlJob) {
+  const jobToSave = {
+    ...job,
+    updatedAt: new Date().toISOString(),
+  };
+
   if (shouldUseLocalJobs()) {
-    localJobs.set(job.id, job);
-    return job;
+    localJobs.set(job.id, jobToSave);
+    return jobToSave;
   }
 
   const store = getCrawlJobStore();
-  await store.setJSON(`${job.id}.json`, job);
-  return job;
+  await store.setJSON(`${job.id}.json`, jobToSave);
+  return jobToSave;
 }
 
 export async function getCrawlJob(jobId: string) {
@@ -69,6 +75,7 @@ export async function createCrawlJob(input: { websiteUrl: string; crawlLimit: nu
     crawlLimit,
     status: "queued",
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     startedAt: null,
     finishedAt: null,
     progress: {
@@ -102,6 +109,7 @@ export async function runCrawlJob(jobId: string, fallbackJob?: BackgroundCrawlJo
   await saveCrawlJob(runningJob);
 
   let lastProgressSave = 0;
+  let lastSavedProgressPage = 0;
 
   try {
     const result = await crawlWebsite({
@@ -112,11 +120,12 @@ export async function runCrawlJob(jobId: string, fallbackJob?: BackgroundCrawlJo
       maxDurationMs: 14 * 60 * 1000,
       async onProgress(progress) {
         const now = Date.now();
-        if (now - lastProgressSave < 2500) {
+        if (progress.crawledPages - lastSavedProgressPage < 5 && now - lastProgressSave < 5000) {
           return;
         }
 
         lastProgressSave = now;
+        lastSavedProgressPage = progress.crawledPages;
         await saveCrawlJob({
           ...runningJob,
           status: "running",

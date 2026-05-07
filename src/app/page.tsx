@@ -162,6 +162,7 @@ type BackgroundCrawlJob = {
   crawlLimit: number;
   status: "queued" | "running" | "completed" | "failed";
   createdAt: string;
+  updatedAt: string;
   startedAt: string | null;
   finishedAt: string | null;
   progress: {
@@ -431,6 +432,8 @@ export default function Home() {
       setBackgroundStatus(
         data.job.status === "completed"
           ? "Background crawl completed and loaded into the dashboard."
+          : data.job.status === "failed"
+            ? data.job.error ?? "Background crawl failed."
           : `Background crawl is ${data.job.status}.`,
       );
     } catch (jobError) {
@@ -591,6 +594,7 @@ export default function Home() {
               <div className={styles.jobMeta}>
                 <span>{backgroundJob.status}</span>
                 <strong>{backgroundJob.progress.crawledPages} / {backgroundJob.crawlLimit} pages</strong>
+                {backgroundJob.progress.currentUrl ? <small>{backgroundJob.progress.currentUrl}</small> : null}
                 <button onClick={refreshBackgroundCrawl} type="button">Refresh job</button>
               </div>
             ) : null}
