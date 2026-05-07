@@ -156,6 +156,23 @@ type TrackerConnection = {
   reportsSeen: number;
 };
 
+type BackgroundCrawlJob = {
+  id: string;
+  websiteUrl: string;
+  crawlLimit: number;
+  status: "queued" | "running" | "completed" | "failed";
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  progress: {
+    crawledPages: number;
+    queuedPages: number;
+    currentUrl: string;
+  };
+  error: string | null;
+  result?: AuditResponse;
+};
+
 type FilterMode = "target" | "all" | "broken" | "nofollow";
 type DashboardView =
   | "overview"
@@ -258,6 +275,8 @@ export default function Home() {
   const [result, setResult] = useState<AuditResponse | null>(null);
   const [trackerSummary, setTrackerSummary] = useState<TrackerSummary | null>(null);
   const [trackerConnection, setTrackerConnection] = useState<TrackerConnection | null>(null);
+  const [backgroundJob, setBackgroundJob] = useState<BackgroundCrawlJob | null>(null);
+  const [backgroundStatus, setBackgroundStatus] = useState("");
   const [inboundTracker, setInboundTracker] = useState<InboundTrackerResult | null>(null);
   const [trackerStatus, setTrackerStatus] = useState("");
   const [copiedSnippet, setCopiedSnippet] = useState("");
@@ -328,6 +347,62 @@ export default function Home() {
       );
     } catch (reportError) {
       setTrackerStatus(reportError instanceof Error ? reportError.message : "Could not load tracker reports.");
+    }
+  }
+
+  async function startBackgroundCrawl() {
+    setBackgroundStatus("Starting background crawl...");
+
+    try {
+      const response = await fetch("/api/crawl-jobs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ websiteUrl, crawlLimit }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not start background crawl.");
+      }
+
+      setBackgroundJob(data.job);
+      setBackgroundStatus("Background crawl started. Use refresh to check progress.");
+    } catch (jobError) {
+      setBackgroundStatus(jobError instanceof Error ? jobError.message : "Could not start background crawl.");
+    }
+  }
+
+  async function refreshBackgroundCrawl() {
+    if (!backgroundJob) {
+      setBackgroundStatus("Start a background crawl first.");
+      return;
+    }
+
+    setBackgroundStatus("Checking background crawl...");
+
+    try {
+      const response = await fetch(`/api/crawl-jobs/${backgroundJob.id}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not load background crawl.");
+      }
+
+      setBackgroundJob(data.job);
+
+      if (data.job.result) {
+        setResult(data.job.result);
+        setTargetFilter("");
+        setMode("all");
+      }
+
+      setBackgroundStatus(
+        data.job.status === "completed"
+          ? "Background crawl completed and loaded into the dashboard."
+          : `Background crawl is ${data.job.status}.`,
+      );
+    } catch (jobError) {
+      setBackgroundStatus(jobError instanceof Error ? jobError.message : "Could not load background crawl.");
     }
   }
 
@@ -471,14 +546,29 @@ export default function Home() {
               Crawl limit
               <input
                 min={1}
-                max={200}
+                max={1500}
                 type="number"
                 value={crawlLimit}
                 onChange={(event) => setCrawlLimit(Number(event.target.value))}
               />
             </label>
             <button disabled={isLoading} type="submit">{isLoading ? "Auditing..." : "Run audit"}</button>
+            <button className={styles.secondaryButton} onClick={startBackgroundCrawl} type="button">Start background crawl</button>
           </form>
+          <div className={styles.jobPanel}>
+            <div>
+              <strong>Large crawl mode</strong>
+              <span>Instant audits stay safest up to 200 pages. Background crawls can run up to 1,500 pages on Netlify.</span>
+            </div>
+            {backgroundJob ? (
+              <div className={styles.jobMeta}>
+                <span>{backgroundJob.status}</span>
+                <strong>{backgroundJob.progress.crawledPages} / {backgroundJob.crawlLimit} pages</strong>
+                <button onClick={refreshBackgroundCrawl} type="button">Refresh job</button>
+              </div>
+            ) : null}
+          </div>
+          {backgroundStatus ? <p className={styles.statusText}>{backgroundStatus}</p> : null}
           {error ? <p className={styles.error}>{error}</p> : null}
           {result?.audit.discovery?.stoppedEarly ? (
             <p className={styles.warning}>Returned a partial audit before the free hosting time limit.</p>

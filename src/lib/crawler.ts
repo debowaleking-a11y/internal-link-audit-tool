@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import { normalizeUrl, isSameDomain } from "@/lib/url";
+import { normalizeUrl, isSameDomain } from "./url";
 
 export type CrawledPage = {
   url: string;
@@ -289,11 +289,13 @@ export async function crawlWebsite(input: {
   websiteUrl: string;
   targetUrl: string;
   crawlLimit: number;
+  maxCrawlLimit?: number;
   maxDurationMs?: number;
+  onProgress?: (progress: { crawledPages: number; queuedPages: number; currentUrl: string }) => Promise<void> | void;
 }) {
   const websiteUrl = normalizeUrl(input.websiteUrl);
   const normalizedTarget = normalizeUrl(input.targetUrl, websiteUrl);
-  const crawlLimit = Math.max(1, Math.min(input.crawlLimit, 250));
+  const crawlLimit = Math.max(1, Math.min(input.crawlLimit, input.maxCrawlLimit ?? 250));
   const deadline = Date.now() + (input.maxDurationMs ?? 9000);
   const hasTime = (paddingMs = 0) => Date.now() + paddingMs < deadline;
   const sitemapDiscovery = await discoverSitemapUrls(websiteUrl, crawlLimit);
@@ -319,6 +321,11 @@ export async function crawlWebsite(input: {
 
     const currentUrl = currentSeed.url;
     crawled.add(currentUrl);
+    await input.onProgress?.({
+      crawledPages: crawled.size,
+      queuedPages: queue.length,
+      currentUrl,
+    });
 
     try {
       const result = await fetchPage(currentUrl);

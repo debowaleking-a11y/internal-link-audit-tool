@@ -1,4 +1,4 @@
-import { buildAnchorSuggestions } from "@/lib/crawler";
+import { buildAnchorSuggestions } from "./crawler";
 
 type PageLike = {
   id: string;

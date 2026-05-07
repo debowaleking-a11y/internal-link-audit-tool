@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { crawlWebsite } from "@/lib/crawler";
 import { normalizeUrl } from "@/lib/url";
-import { summarizeAudit } from "@/lib/audit-summary";
+import { buildAuditResponse } from "@/lib/audit-response";
 
 export const runtime = "nodejs";
 
@@ -40,53 +40,18 @@ export async function POST(request: Request) {
         ? crypto.randomUUID()
         : `audit-${Date.now()}`;
 
-    const pages = result.pages
-      .sort((first, second) => first.url.localeCompare(second.url))
-      .map((page, index) => ({
-        id: `page-${index + 1}`,
-        url: page.url,
-        title: page.title,
-        metaDescription: page.metaDescription,
-        canonicalUrl: page.canonicalUrl,
-        robotsMeta: page.robotsMeta,
-        h1Texts: page.h1Texts,
-        h2Texts: page.h2Texts,
-        h3Texts: page.h3Texts,
-        bodyTextSample: page.bodyTextSample,
-        statusCode: page.statusCode,
-        crawled: page.crawled,
-        error: page.error ?? null,
-      }));
-
-    const links = result.links
-      .sort((first, second) => first.sourceUrl.localeCompare(second.sourceUrl) || first.position - second.position)
-      .map((link, index) => ({
-        id: `link-${index + 1}`,
-        sourceUrl: link.sourceUrl,
-        targetUrl: link.targetUrl,
-        anchorText: link.anchorText,
-        position: link.position,
-        rel: link.rel,
-        follow: link.follow,
-        statusCode: link.statusCode,
-        pageTitle: link.pageTitle,
-        isBroken: link.isBroken,
-      }));
-
-    return NextResponse.json({
-      audit: {
+    return NextResponse.json(
+      buildAuditResponse({
         id: auditId,
         websiteUrl,
         targetUrl,
         crawlLimit,
-        status: "completed",
-        error: null,
         createdAt,
         discovery: result.discovery,
-        links,
-      },
-      summary: summarizeAudit(pages, links, targetUrl),
-    });
+        pages: result.pages,
+        links: result.links,
+      }),
+    );
   } catch (error) {
     return NextResponse.json(
       {

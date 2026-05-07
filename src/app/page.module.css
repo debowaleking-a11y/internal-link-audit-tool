@@ -159,6 +159,7 @@
 
 .topActions button,
 .heroSearch button,
+.jobMeta button,
 .panelHeader button,
 .snippetCard button,
 .segmented button {
@@ -171,6 +172,7 @@
 }
 
 .topActions button,
+.jobMeta button,
 .panelHeader button,
 .snippetCard button {
   background: rgba(255, 255, 255, 0.08);
@@ -179,6 +181,7 @@
 }
 
 .topActions button:hover,
+.jobMeta button:hover,
 .panelHeader button:hover,
 .snippetCard button:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -251,7 +254,7 @@
 }
 
 .heroSearch {
-  grid-template-columns: minmax(320px, 1fr) 160px auto;
+  grid-template-columns: minmax(320px, 1fr) 160px auto auto;
   align-items: end;
 }
 
@@ -311,6 +314,12 @@
   white-space: nowrap;
 }
 
+.heroSearch .secondaryButton {
+  border: 1px solid rgba(18, 196, 214, 0.28);
+  background: rgba(18, 196, 214, 0.1);
+  color: #f5f7fb;
+}
+
 .heroSearch button:disabled {
   cursor: wait;
   opacity: 0.68;
@@ -320,6 +329,43 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
+}
+
+.jobPanel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 14px;
+}
+
+.jobPanel strong,
+.jobPanel span {
+  display: block;
+}
+
+.jobPanel span {
+  margin-top: 6px;
+  color: #a9b0c0;
+  line-height: 1.45;
+}
+
+.jobMeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.jobMeta span {
+  margin: 0;
+  color: #12c4d6;
+  font-weight: 850;
+  text-transform: uppercase;
 }
 
 .metric {
@@ -698,7 +744,8 @@
   }
 
   .topbar,
-  .panelHeader {
+  .panelHeader,
+  .jobPanel {
     display: grid;
   }
 
