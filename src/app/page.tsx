@@ -246,10 +246,9 @@ function downloadRowsCsv(filename: string, header: string[], rows: Array<Array<s
 
 export default function Home() {
   const [websiteUrl, setWebsiteUrl] = useState(defaultWebsite);
-  const [targetUrl, setTargetUrl] = useState(defaultTarget);
   const [crawlLimit, setCrawlLimit] = useState(50);
   const [anchorFilter, setAnchorFilter] = useState("");
-  const [targetFilter, setTargetFilter] = useState(defaultTarget);
+  const [targetFilter, setTargetFilter] = useState("");
   const [trackerTargetUrl, setTrackerTargetUrl] = useState(defaultTarget);
   const [mode, setMode] = useState<FilterMode>("target");
   const [activeView, setActiveView] = useState<DashboardView>("overview");
@@ -274,7 +273,7 @@ export default function Home() {
       const response = await fetch("/api/audits", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ websiteUrl, targetUrl, crawlLimit }),
+        body: JSON.stringify({ websiteUrl, crawlLimit }),
       });
       const responseText = await response.text();
       const data = responseText ? JSON.parse(responseText) : {};
@@ -284,9 +283,8 @@ export default function Home() {
       }
 
       setResult(data);
-      setTargetFilter(data.audit.targetUrl);
-      setTrackerTargetUrl(data.audit.targetUrl);
-      setMode("target");
+      setTargetFilter("");
+      setMode("all");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Audit failed.");
     } finally {
@@ -456,8 +454,8 @@ export default function Home() {
           <div>
             <h1>Internal link audit dashboard.</h1>
             <p>
-              Combine sitemap crawling with a sitewide JavaScript tracker to monitor inbound internal links, anchors,
-              placement, clicks, and page coverage.
+              Run a full-site crawl from the website URL, then use Internal Links when you want target URL inbound
+              analysis, anchors, placement, clicks, and page coverage.
             </p>
             <button className={styles.installPill} onClick={() => setShowSnippets((value) => !value)} type="button">
               <span>{trackerId}</span>
@@ -468,10 +466,6 @@ export default function Home() {
             <label>
               Website
               <input value={websiteUrl} onChange={(event) => setWebsiteUrl(event.target.value)} />
-            </label>
-            <label>
-              Target URL
-              <input value={targetUrl} onChange={(event) => setTargetUrl(event.target.value)} />
             </label>
             <label>
               Crawl limit
@@ -525,7 +519,14 @@ export default function Home() {
           <div className={styles.lookupRow}>
             <label>
               Target URL
-              <input value={trackerTargetUrl} onChange={(event) => setTrackerTargetUrl(event.target.value)} />
+              <input
+                value={trackerTargetUrl}
+                onChange={(event) => {
+                  setTrackerTargetUrl(event.target.value);
+                  setTargetFilter(event.target.value);
+                  setMode("target");
+                }}
+              />
             </label>
             <div className={styles.lookupMeta}>
               <span>{inboundTracker?.counts.matchingLinks ?? 0}</span>
@@ -565,8 +566,12 @@ export default function Home() {
           </div>
           <div className={styles.filters}>
             <label>
-              Target URL filter
-              <input value={targetFilter} onChange={(event) => setTargetFilter(event.target.value)} />
+              Target URL filter for inbound analysis
+              <input
+                placeholder="Leave blank to show the whole website link map"
+                value={targetFilter}
+                onChange={(event) => setTargetFilter(event.target.value)}
+              />
             </label>
             <label>
               Anchor text

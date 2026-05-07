@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const websiteUrl = normalizeUrl(String(body.websiteUrl ?? ""));
-    const targetUrl = normalizeUrl(String(body.targetUrl ?? ""), websiteUrl);
+    const targetUrl = body.targetUrl ? normalizeUrl(String(body.targetUrl), websiteUrl) : websiteUrl;
     const crawlLimit = parseLimit(body.crawlLimit);
 
     if (new URL(websiteUrl).hostname !== new URL(targetUrl).hostname) {
