@@ -64,8 +64,8 @@ function safeKeyPart(value: string) {
 }
 
 function getTrackerStore() {
-  if (process.env.CONTEXT === "production") {
-    return getStore("link-tracker");
+  if (process.env.NETLIFY || process.env.CONTEXT) {
+    return getStore({ name: "link-tracker", consistency: "strong" });
   }
 
   return getDeployStore("link-tracker");

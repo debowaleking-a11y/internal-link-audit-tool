@@ -28,8 +28,8 @@ function shouldUseLocalJobs() {
 }
 
 function getCrawlJobStore() {
-  if (process.env.CONTEXT === "production") {
-    return getStore("crawl-jobs");
+  if (process.env.NETLIFY || process.env.CONTEXT) {
+    return getStore({ name: "crawl-jobs", consistency: "strong" });
   }
 
   return getDeployStore("crawl-jobs");
