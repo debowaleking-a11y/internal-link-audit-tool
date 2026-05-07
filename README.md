@@ -8,11 +8,12 @@ A free-friendly Next.js MVP for crawling a website, extracting internal links, f
 - Discover pages from `robots.txt` sitemap declarations and `/sitemap.xml`.
 - Crawl same-domain internal URLs with a sitemap-first Cheerio-based Node crawler.
 - Capture source URL, target URL, anchor text, link position, rel, follow/nofollow, status code, and page title.
-- Filter by target URL, anchor text, broken links, nofollow links, orphan pages, and low-link pages.
-- Suggest pages that could link to the target URL with a simple anchor text recommendation.
-- Export the current results to CSV in the browser.
-- Copy a header or footer JavaScript snippet to report live internal links from pages that load.
+- Audit missing/duplicate title tags, missing/duplicate meta descriptions, missing or multiple H1s, canonical mismatches, noindex signals, broken internal links, nofollow internal links, orphan pages, and low-link pages.
+- Suggest pages where a target URL should be added based on keyword matches in title, headings, body text, and stronger internally linked pages.
+- Export link and issue reports to CSV in a sheet-ready format.
+- Copy a GTM-style header or footer JavaScript snippet with a unique `ILA-...` site ID.
 - Look up inbound internal links to a supplied target URL from live snippet reports.
+- Confirm when the snippet is connected and sending events.
 
 ## Tech Stack
 
@@ -20,6 +21,7 @@ A free-friendly Next.js MVP for crawling a website, extracting internal links, f
 - TypeScript
 - Cheerio
 - Stateless API routes for free/serverless deployment
+- Netlify Blobs as the free-hosting storage layer for tracking events
 
 ## Setup
 
@@ -64,6 +66,8 @@ The included `netlify.toml` sets the same build command, publish directory, and 
 
 ## Live Tracking Snippets
 
+The dashboard generates a unique `ILA-...` site ID from the website URL. Tap the Tool ID on the Overview dashboard to reveal the snippets.
+
 Use the header version when your website lets you add custom code inside `<head>`:
 
 ```html
@@ -85,19 +89,30 @@ Use the footer version when the header does not load reliably, or when your them
 
 You can also install one of these through Google Tag Manager or a CMS global custom-code area.
 
-The dashboard generates the correct `ILA-...` tool ID from the website URL you enter. After the snippet loads on at least one page, click **Refresh reports** and the install card changes from **Not detected yet** to **Connected**.
+After the snippet loads on at least one page, click **Refresh reports** and the dashboard changes from **Not detected yet** to **Connected**.
 
 The snippet does not change the page visually. It reports:
 
 - Current page URL and title
+- Meta description
+- Canonical URL
+- H1, H2, and H3 text/counts
 - Internal links on the page
 - Anchor text
 - Link position
 - Header, footer, nav, main, aside, or body placement
 - Follow/nofollow rel data
 - Internal link clicks
+- External link clicks
+- Scroll depth
+- Referrer
+- UTM parameters
+- Device type
+- Page load timing
 
-The report API stores lightweight snapshots in Netlify Blobs for the project. JavaScript tracking only sees pages where the snippet actually runs, so use it alongside the sitemap crawler for broader coverage.
+The script intentionally does not collect passwords, form field values, payment data, or private page content. The report API validates the site ID, rejects mismatched origins, rate-limits event collection, and ignores obvious bot traffic where possible.
+
+The report API stores lightweight snapshots in Netlify Blobs for the project. These blobs act as the current free database layer for `tracking_events` and script installation status. JavaScript tracking only sees pages where the snippet actually runs, so use it alongside the sitemap crawler for broader coverage.
 
 After reports exist, enter a target URL in the dashboard's live tracking panel and click **Refresh reports**. The tool will show every tracked source page where that URL appears as an internal link, including anchor text, placement, position, and follow/nofollow.
 
@@ -107,11 +122,31 @@ After reports exist, enter a target URL in the dashboard's live tracking panel a
 npm run dev
 npm run build
 npm run lint
+npm test
 ```
+
+## Environment Variables
+
+No environment variables are required for local crawling. On Netlify, tracking events use Netlify Blobs automatically through the deployed site context.
+
+## Data Models
+
+The free Netlify build uses logical TypeScript models in `src/lib/data-models.ts` and Netlify Blobs instead of SQL migrations. The models cover:
+
+- `sites`
+- `crawls`
+- `pages`
+- `links`
+- `page_issues`
+- `tracking_events`
+- `script_installations`
+
+When this moves to SQLite/PostgreSQL, these models should become the migration source of truth.
 
 ## Notes
 
 - Audit history is not saved in this free MVP. Results live in the current browser session.
+- SQLite/Postgres models for `sites`, `crawls`, `pages`, `links`, `page_issues`, `tracking_events`, and `script_installations` are planned for the database-backed version. The current Netlify version uses logical equivalents in API response data and Netlify Blobs to stay free.
 - The crawler reads sitemap URLs first, then follows internal links from crawled pages.
 - The live snippet records visited pages, not unvisited orphan pages.
 - The crawler only follows internal URLs on the same hostname as the website URL.

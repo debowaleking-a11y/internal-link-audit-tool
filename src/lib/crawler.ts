@@ -4,6 +4,13 @@ import { normalizeUrl, isSameDomain } from "@/lib/url";
 export type CrawledPage = {
   url: string;
   title: string;
+  metaDescription: string;
+  canonicalUrl: string;
+  robotsMeta: string;
+  h1Texts: string[];
+  h2Texts: string[];
+  h3Texts: string[];
+  bodyTextSample: string;
   statusCode: number | null;
   crawled: boolean;
   error?: string;
@@ -83,12 +90,17 @@ async function fetchText(url: string) {
 async function findSitemapLocations(websiteUrl: string) {
   const website = new URL(websiteUrl);
   const candidates = new Set<string>();
+  const robotsUrl = `${website.origin}/robots.txt`;
+  let robotsFound = false;
+  let robotsText = "";
+  let robotsError = "";
 
   candidates.add(normalizeUrl("/sitemap.xml", websiteUrl));
 
   try {
-    const robotsUrl = `${website.origin}/robots.txt`;
     const robots = await fetchText(robotsUrl);
+    robotsText = robots;
+    robotsFound = Boolean(robots);
 
     for (const line of robots.split(/\r?\n/)) {
       const match = line.match(/^\s*sitemap:\s*(.+)\s*$/i);
@@ -105,11 +117,21 @@ async function findSitemapLocations(websiteUrl: string) {
         // Ignore malformed sitemap declarations.
       }
     }
-  } catch {
+  } catch (error) {
+    robotsError = error instanceof Error ? error.message : "Unable to read robots.txt.";
     // robots.txt is optional; fall back to the default sitemap location.
   }
 
-  return [...candidates];
+  return {
+    sitemapLocations: [...candidates],
+    robots: {
+      url: robotsUrl,
+      found: robotsFound,
+      sitemapDeclarations: [...candidates].length - 1,
+      hasDisallowRules: /^\s*disallow:\s*\S+/im.test(robotsText),
+      error: robotsError || null,
+    },
+  };
 }
 
 async function readSitemapUrls(input: {
@@ -182,11 +204,11 @@ async function readSitemapUrls(input: {
 }
 
 async function discoverSitemapUrls(websiteUrl: string, limit: number) {
-  const sitemapLocations = await findSitemapLocations(websiteUrl);
+  const sitemapSearch = await findSitemapLocations(websiteUrl);
   const visitedSitemaps = new Set<string>();
   const discovered = new Set<string>();
 
-  for (const sitemapUrl of sitemapLocations) {
+  for (const sitemapUrl of sitemapSearch.sitemapLocations) {
     if (discovered.size >= limit) {
       break;
     }
@@ -206,6 +228,7 @@ async function discoverSitemapUrls(websiteUrl: string, limit: number) {
   return {
     urls: [...discovered],
     sitemapCount: visitedSitemaps.size,
+    robots: sitemapSearch.robots,
   };
 }
 
@@ -305,6 +328,13 @@ export async function crawlWebsite(input: {
         pages.set(currentUrl, {
           url: currentUrl,
           title: "",
+          metaDescription: "",
+          canonicalUrl: "",
+          robotsMeta: "",
+          h1Texts: [],
+          h2Texts: [],
+          h3Texts: [],
+          bodyTextSample: "",
           statusCode: result.statusCode,
           crawled: true,
           links: [],
@@ -314,6 +344,19 @@ export async function crawlWebsite(input: {
 
       const $ = cheerio.load(result.html);
       const title = $("title").first().text().replace(/\s+/g, " ").trim();
+      const metaDescription = $('meta[name="description"]').first().attr("content")?.replace(/\s+/g, " ").trim() ?? "";
+      const canonicalHref = $('link[rel~="canonical"]').first().attr("href") ?? "";
+      let canonicalUrl = "";
+      try {
+        canonicalUrl = canonicalHref ? normalizeUrl(canonicalHref, currentUrl) : "";
+      } catch {
+        canonicalUrl = "";
+      }
+      const robotsMeta = $('meta[name="robots"]').first().attr("content")?.replace(/\s+/g, " ").trim() ?? "";
+      const h1Texts = $("h1").map((_, element) => $(element).text().replace(/\s+/g, " ").trim()).get().filter(Boolean);
+      const h2Texts = $("h2").map((_, element) => $(element).text().replace(/\s+/g, " ").trim()).get().filter(Boolean);
+      const h3Texts = $("h3").map((_, element) => $(element).text().replace(/\s+/g, " ").trim()).get().filter(Boolean);
+      const bodyTextSample = $("body").text().replace(/\s+/g, " ").trim().slice(0, 6000);
       const links: CrawledLink[] = [];
 
       $("a[href]").each((index, element) => {
@@ -356,6 +399,13 @@ export async function crawlWebsite(input: {
       pages.set(currentUrl, {
         url: currentUrl,
         title,
+        metaDescription,
+        canonicalUrl,
+        robotsMeta,
+        h1Texts,
+        h2Texts,
+        h3Texts,
+        bodyTextSample,
         statusCode: result.statusCode,
         crawled: true,
         links,
@@ -364,6 +414,13 @@ export async function crawlWebsite(input: {
       pages.set(currentUrl, {
         url: currentUrl,
         title: "",
+        metaDescription: "",
+        canonicalUrl: "",
+        robotsMeta: "",
+        h1Texts: [],
+        h2Texts: [],
+        h3Texts: [],
+        bodyTextSample: "",
         statusCode: null,
         crawled: false,
         error: error instanceof Error ? error.message : "Unable to crawl page.",
@@ -399,6 +456,13 @@ export async function crawlWebsite(input: {
       pages.set(targetUrl, {
         url: targetUrl,
         title: "",
+        metaDescription: "",
+        canonicalUrl: "",
+        robotsMeta: "",
+        h1Texts: [],
+        h2Texts: [],
+        h3Texts: [],
+        bodyTextSample: "",
         statusCode: statusCache.get(targetUrl) ?? null,
         crawled: false,
         links: [],
@@ -417,13 +481,23 @@ export async function crawlWebsite(input: {
       sitemapUrls: sitemapDiscovery.urls.length,
       sitemapsRead: sitemapDiscovery.sitemapCount,
       crawledFromSitemap: [...crawled].filter((url) => sitemapUrlSet.has(url)).length,
+      robots: sitemapDiscovery.robots,
       stoppedEarly,
     },
   };
 }
 
 export function buildAnchorSuggestions(input: {
-  pages: Array<{ url: string; title: string; incomingCount: number; linksToTarget: number }>;
+  pages: Array<{
+    url: string;
+    title: string;
+    incomingCount: number;
+    linksToTarget: number;
+    h1Texts?: string[];
+    h2Texts?: string[];
+    h3Texts?: string[];
+    bodyTextSample?: string;
+  }>;
   targetUrl: string;
 }) {
   const target = new URL(input.targetUrl);
@@ -436,18 +510,39 @@ export function buildAnchorSuggestions(input: {
   return input.pages
     .filter((page) => page.linksToTarget === 0)
     .map((page) => {
-      const haystack = `${page.url} ${page.title}`.toLowerCase();
+      const headingText = [...(page.h1Texts ?? []), ...(page.h2Texts ?? []), ...(page.h3Texts ?? [])].join(" ");
+      const haystack = `${page.url} ${page.title} ${headingText} ${page.bodyTextSample ?? ""}`.toLowerCase();
       const matches = keywords.filter((keyword) => haystack.includes(keyword.toLowerCase()));
+      const reasons = [
+        page.title && keywords.some((keyword) => page.title.toLowerCase().includes(keyword.toLowerCase()))
+          ? "matching keyword in title"
+          : "",
+        headingText && keywords.some((keyword) => headingText.toLowerCase().includes(keyword.toLowerCase()))
+          ? "matching keyword in headings"
+          : "",
+        page.bodyTextSample && keywords.some((keyword) => page.bodyTextSample?.toLowerCase().includes(keyword.toLowerCase()))
+          ? "matching keyword in body text"
+          : "",
+        page.incomingCount >= 3 ? "high incoming internal link count" : "",
+      ].filter(Boolean);
 
       return {
         url: page.url,
         title: page.title,
         reason:
-          matches.length > 0
-            ? `Mentions ${matches.slice(0, 3).join(", ")} in the URL or title.`
+          reasons.length > 0
+            ? `${reasons.join(", ")}. Matched: ${matches.slice(0, 3).join(", ")}.`
             : "Crawled page does not currently link to the target.",
         suggestedAnchor: keywords.length > 0 ? keywords.join(" ") : target.hostname,
+        score: reasons.length * 10 + page.incomingCount,
       };
     })
+    .sort((first, second) => second.score - first.score)
+    .map((suggestion) => ({
+      url: suggestion.url,
+      title: suggestion.title,
+      reason: suggestion.reason,
+      suggestedAnchor: suggestion.suggestedAnchor,
+    }))
     .slice(0, 25);
 }

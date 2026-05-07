@@ -12,6 +12,8 @@ export async function GET(request: Request) {
   var endpoint = ${JSON.stringify(`${origin}/api/track`)};
   var trackerId = ${JSON.stringify(trackerId)};
   var site = location.hostname;
+  var maxScrollDepth = 0;
+  var scrollTimer = null;
 
   function cleanText(value) {
     return String(value || "").replace(/\\s+/g, " ").trim();
@@ -24,6 +26,55 @@ export async function GET(request: Request) {
     if (link.closest("aside")) return "aside";
     if (link.closest("main")) return "main";
     return "body";
+  }
+
+  function meta(name) {
+    var node = document.querySelector('meta[name="' + name + '"]');
+    return node ? cleanText(node.getAttribute("content")) : "";
+  }
+
+  function canonicalUrl() {
+    var node = document.querySelector('link[rel~="canonical"]');
+    try {
+      return node ? new URL(node.getAttribute("href") || "", location.href).toString() : "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function headingTexts(selector) {
+    return Array.prototype.slice.call(document.querySelectorAll(selector))
+      .map(function (heading) { return cleanText(heading.textContent); })
+      .filter(Boolean)
+      .slice(0, 30);
+  }
+
+  function utmParams() {
+    var params = new URLSearchParams(location.search);
+    var output = {};
+    ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"].forEach(function (key) {
+      var value = params.get(key);
+      if (value) output[key] = cleanText(value).slice(0, 160);
+    });
+    return output;
+  }
+
+  function deviceType() {
+    var width = window.innerWidth || document.documentElement.clientWidth || 0;
+    if (width < 768) return "mobile";
+    if (width < 1100) return "tablet";
+    return "desktop";
+  }
+
+  function pageTiming() {
+    var timing = performance && performance.timing ? performance.timing : null;
+    if (!timing || !timing.navigationStart) {
+      return { domContentLoadedMs: null, loadCompleteMs: null };
+    }
+    return {
+      domContentLoadedMs: timing.domContentLoadedEventEnd ? Math.max(0, timing.domContentLoadedEventEnd - timing.navigationStart) : null,
+      loadCompleteMs: timing.loadEventEnd ? Math.max(0, timing.loadEventEnd - timing.navigationStart) : null
+    };
   }
 
   function internalLinks() {
@@ -52,9 +103,21 @@ export async function GET(request: Request) {
     var payload = Object.assign({
       trackerId: trackerId,
       site: site,
+      eventType: "page_view",
       pageUrl: location.href,
       pageTitle: document.title || "",
+      metaDescription: meta("description"),
+      canonicalUrl: canonicalUrl(),
+      headings: {
+        h1: headingTexts("h1"),
+        h2: headingTexts("h2"),
+        h3: headingTexts("h3")
+      },
       referrer: document.referrer || "",
+      utm: utmParams(),
+      deviceType: deviceType(),
+      pageLoadTiming: pageTiming(),
+      scrollDepth: maxScrollDepth,
       links: internalLinks()
     }, extra || {});
 
@@ -84,13 +147,23 @@ export async function GET(request: Request) {
     if (!link) return;
     try {
       var url = new URL(link.href, location.href);
-      if (url.hostname !== location.hostname) return;
       send({
+        eventType: url.hostname === location.hostname ? "internal_click" : "external_click",
         clickedUrl: url.toString(),
-        clickedAnchorText: cleanText(link.textContent || link.getAttribute("aria-label") || link.title)
+        clickedAnchorText: cleanText(link.textContent || link.getAttribute("aria-label") || link.title),
+        clickedExternal: url.hostname !== location.hostname
       });
     } catch (_) {}
   }, true);
+
+  window.addEventListener("scroll", function () {
+    var scrollable = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+    maxScrollDepth = Math.max(maxScrollDepth, Math.min(100, Math.round((window.scrollY / scrollable) * 100)));
+    window.clearTimeout(scrollTimer);
+    scrollTimer = window.setTimeout(function () {
+      send({ eventType: "scroll", links: [] });
+    }, 1200);
+  }, { passive: true });
 })();`.trim();
 
   return new Response(script, {

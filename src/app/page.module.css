@@ -2,6 +2,7 @@
   min-height: 100vh;
   display: grid;
   grid-template-columns: 270px minmax(0, 1fr);
+  font-family: Tahoma, Arial, Helvetica, sans-serif;
   background:
     radial-gradient(circle at 68% 12%, rgba(116, 80, 255, 0.22), transparent 28%),
     radial-gradient(circle at 92% 30%, rgba(19, 196, 214, 0.14), transparent 26%),
@@ -60,19 +61,23 @@
   gap: 8px;
 }
 
-.nav a {
+.nav button {
   min-height: 42px;
   display: flex;
   align-items: center;
   border: 1px solid transparent;
   border-radius: 8px;
+  background: transparent;
   color: #a9b0c0;
+  cursor: pointer;
   font-size: 14px;
   font-weight: 700;
+  font-family: inherit;
   padding: 0 14px;
+  text-align: left;
 }
 
-.nav a:hover,
+.nav button:hover,
 .navActive {
   border-color: rgba(124, 77, 255, 0.34) !important;
   background: linear-gradient(90deg, rgba(124, 77, 255, 0.26), rgba(18, 196, 214, 0.12));
@@ -220,7 +225,10 @@
   border: 1px solid rgba(18, 196, 214, 0.26);
   border-radius: 8px;
   background: rgba(18, 196, 214, 0.08);
+  cursor: pointer;
+  font-family: inherit;
   padding: 9px 12px;
+  text-align: left;
 }
 
 .installPill span {
@@ -270,7 +278,8 @@
 
 .heroSearch input,
 .filters input,
-.lookupRow input {
+.lookupRow input,
+.filters select {
   width: 100%;
   min-height: 46px;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -284,9 +293,15 @@
 
 .heroSearch input:focus,
 .filters input:focus,
-.lookupRow input:focus {
+.lookupRow input:focus,
+.filters select:focus {
   border-color: rgba(18, 196, 214, 0.72);
   box-shadow: 0 0 0 4px rgba(18, 196, 214, 0.12);
+}
+
+.filters option {
+  background: #10131f;
+  color: #ffffff;
 }
 
 .heroSearch button {

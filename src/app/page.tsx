@@ -2,6 +2,7 @@
 
 import { type FormEvent, type ReactNode, useMemo, useState } from "react";
 import styles from "./page.module.css";
+import { hostnameFromUrl, trackerIdForWebsite } from "@/lib/site-id";
 
 type LinkRow = {
   id: string;
@@ -20,6 +21,13 @@ type PageInsight = {
   id: string;
   url: string;
   title: string;
+  metaDescription: string;
+  canonicalUrl: string;
+  robotsMeta: string;
+  h1Texts: string[];
+  h2Texts: string[];
+  h3Texts: string[];
+  bodyTextSample: string;
   statusCode: number | null;
   crawled: boolean;
   error: string | null;
@@ -28,6 +36,15 @@ type PageInsight = {
   linksToTarget: number;
   isOrphan: boolean;
   hasTooFewInternalLinks: boolean;
+  missingTitle: boolean;
+  duplicateTitle: boolean;
+  missingMetaDescription: boolean;
+  duplicateMetaDescription: boolean;
+  missingH1: boolean;
+  multipleH1: boolean;
+  canonicalMismatch: boolean;
+  noindex: boolean;
+  issueTypes: string[];
 };
 
 type AuditResponse = {
@@ -43,6 +60,13 @@ type AuditResponse = {
       sitemapUrls: number;
       sitemapsRead: number;
       crawledFromSitemap: number;
+      robots?: {
+        url: string;
+        found: boolean;
+        sitemapDeclarations: number;
+        hasDisallowRules: boolean;
+        error: string | null;
+      };
       stoppedEarly?: boolean;
     };
     links: LinkRow[];
@@ -53,9 +77,19 @@ type AuditResponse = {
       crawledPages: number;
       links: number;
       brokenLinks: number;
+      nofollowInternalLinks: number;
       orphanPages: number;
       lowLinkPages: number;
       linksToTarget: number;
+      missingTitles: number;
+      duplicateTitles: number;
+      missingMetaDescriptions: number;
+      duplicateMetaDescriptions: number;
+      missingH1: number;
+      multipleH1: number;
+      canonicalMismatches: number;
+      noindexPages: number;
+      seoHealthScore: number;
     };
     pages: PageInsight[];
     suggestions: Array<{
@@ -123,37 +157,18 @@ type TrackerConnection = {
 };
 
 type FilterMode = "target" | "all" | "broken" | "nofollow";
-type PageFilterMode = "orphans" | "low-links";
+type DashboardView =
+  | "overview"
+  | "internal-links"
+  | "page-issues"
+  | "content-decay"
+  | "link-opportunities"
+  | "script-tracking"
+  | "site-settings";
 
 const defaultWebsite = "https://www.vidau.ai/";
 const defaultTarget = "https://www.vidau.ai/ai-video-generator/";
 const trackerScriptUrl = "https://internal-link-audit-tool.netlify.app/api/tracker.js";
-
-function hostnameFromUrl(value: string) {
-  try {
-    return new URL(value).hostname.toLowerCase();
-  } catch {
-    return "";
-  }
-}
-
-function trackerIdForWebsite(value: string) {
-  const hostname = hostnameFromUrl(value) || "your-website";
-  let hash = 0;
-
-  for (let index = 0; index < hostname.length; index += 1) {
-    hash = (hash * 31 + hostname.charCodeAt(index)) >>> 0;
-  }
-
-  const label = hostname
-    .replace(/^www\./, "")
-    .split(".")[0]
-    .replace(/[^a-z0-9]/gi, "")
-    .slice(0, 8)
-    .toUpperCase() || "SITE";
-
-  return `ILA-${label}-${hash.toString(36).toUpperCase().slice(0, 5)}`;
-}
 
 function trackerScriptWithId(trackerId: string) {
   return `${trackerScriptUrl}?id=${encodeURIComponent(trackerId)}`;
@@ -215,6 +230,20 @@ function downloadCsv(audit: AuditResponse["audit"]) {
   URL.revokeObjectURL(url);
 }
 
+function downloadRowsCsv(filename: string, header: string[], rows: Array<Array<string | number | boolean | null>>) {
+  const csv = [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 export default function Home() {
   const [websiteUrl, setWebsiteUrl] = useState(defaultWebsite);
   const [targetUrl, setTargetUrl] = useState(defaultTarget);
@@ -223,7 +252,10 @@ export default function Home() {
   const [targetFilter, setTargetFilter] = useState(defaultTarget);
   const [trackerTargetUrl, setTrackerTargetUrl] = useState(defaultTarget);
   const [mode, setMode] = useState<FilterMode>("target");
-  const [pageMode, setPageMode] = useState<PageFilterMode>("orphans");
+  const [activeView, setActiveView] = useState<DashboardView>("overview");
+  const [showSnippets, setShowSnippets] = useState(false);
+  const [issueFilter, setIssueFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [result, setResult] = useState<AuditResponse | null>(null);
   const [trackerSummary, setTrackerSummary] = useState<TrackerSummary | null>(null);
   const [trackerConnection, setTrackerConnection] = useState<TrackerConnection | null>(null);
@@ -327,10 +359,23 @@ export default function Home() {
     });
   }, [anchorFilter, mode, result, targetFilter]);
 
-  const filteredPages = useMemo(() => {
+  const filteredIssuePages = useMemo(() => {
     const pages = result?.summary.pages ?? [];
-    return pages.filter((page) => (pageMode === "orphans" ? page.isOrphan : page.hasTooFewInternalLinks));
-  }, [pageMode, result]);
+    const normalizedIssue = issueFilter.trim();
+    const normalizedStatus = statusFilter.trim();
+
+    return pages.filter((page) => {
+      if (normalizedIssue && !page.issueTypes.includes(normalizedIssue)) {
+        return false;
+      }
+
+      if (normalizedStatus && String(page.statusCode ?? "unknown") !== normalizedStatus) {
+        return false;
+      }
+
+      return page.issueTypes.length > 0;
+    });
+  }, [issueFilter, result, statusFilter]);
 
   const inboundSources = inboundTracker?.sources ?? [];
   const crawlCounts = result?.summary.counts;
@@ -340,6 +385,30 @@ export default function Home() {
   const headerSnippet = headerSnippetFor(trackerId);
   const footerSnippet = footerSnippetFor(trackerId);
   const isConnected = trackerConnection?.connected ?? false;
+  const pageByUrl = useMemo(() => new Map((result?.summary.pages ?? []).map((page) => [page.url, page])), [result]);
+  const lowEngagementPages = trackerSummary?.pages.filter((page) => page.reportCount <= 1).length ?? 0;
+  const issueOptions = [
+    ["", "All issues"],
+    ["missing_title", "Missing title"],
+    ["duplicate_title", "Duplicate title"],
+    ["missing_meta_description", "Missing meta description"],
+    ["duplicate_meta_description", "Duplicate meta description"],
+    ["missing_h1", "Missing H1"],
+    ["multiple_h1", "Multiple H1"],
+    ["canonical_mismatch", "Canonical mismatch"],
+    ["noindex", "Noindex"],
+    ["orphan_page", "Orphan page"],
+    ["low_internal_links", "Low internal links"],
+  ];
+  const navItems: Array<{ id: DashboardView; label: string }> = [
+    { id: "overview", label: "Overview" },
+    { id: "internal-links", label: "Internal Links" },
+    { id: "page-issues", label: "Page Issues" },
+    { id: "content-decay", label: "Content Decay" },
+    { id: "link-opportunities", label: "Link Opportunities" },
+    { id: "script-tracking", label: "Script Tracking" },
+    { id: "site-settings", label: "Site Settings" },
+  ];
 
   return (
     <main className={styles.shell}>
@@ -352,11 +421,16 @@ export default function Home() {
           </div>
         </div>
         <nav className={styles.nav}>
-          <a href="#overview" className={styles.navActive}>Overview</a>
-          <a href="#inbound">Inbound links</a>
-          <a href="#tracker">Tracker install</a>
-          <a href="#crawl">Crawler audit</a>
-          <a href="#issues">Page issues</a>
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              className={activeView === item.id ? styles.navActive : ""}
+              onClick={() => setActiveView(item.id)}
+              type="button"
+            >
+              {item.label}
+            </button>
+          ))}
         </nav>
         <div className={styles.sideNote}>
           <span>Live status</span>
@@ -376,18 +450,19 @@ export default function Home() {
           </div>
         </header>
 
-        <section id="overview" className={styles.heroPanel}>
+        {activeView === "overview" ? (
+          <>
+        <section className={styles.heroPanel}>
           <div>
-            <p className={styles.eyebrow}>Internal link intelligence</p>
-            <h1>Find every tracked page that links to your target URL.</h1>
+            <h1>Internal link audit dashboard.</h1>
             <p>
               Combine sitemap crawling with a sitewide JavaScript tracker to monitor inbound internal links, anchors,
               placement, clicks, and page coverage.
             </p>
-            <div className={styles.installPill}>
+            <button className={styles.installPill} onClick={() => setShowSnippets((value) => !value)} type="button">
               <span>{trackerId}</span>
               <strong>{isConnected ? "Website deployed" : "Snippet not detected yet"}</strong>
-            </div>
+            </button>
           </div>
           <form className={styles.heroSearch} onSubmit={runAudit}>
             <label>
@@ -414,16 +489,31 @@ export default function Home() {
           {result?.audit.discovery?.stoppedEarly ? (
             <p className={styles.warning}>Returned a partial audit before the free hosting time limit.</p>
           ) : null}
+          {showSnippets ? (
+            <div className={styles.snippetGrid}>
+              <SnippetCard title="Header snippet" description="Paste inside the site head." snippet={headerSnippet} onCopy={() => copySnippet(headerSnippet, "Header")} />
+              <SnippetCard title="Footer snippet" description="Paste before the closing body tag." snippet={footerSnippet} onCopy={() => copySnippet(footerSnippet, "Footer")} />
+            </div>
+          ) : null}
+          {copiedSnippet ? <span className={styles.copyStatus}>{copiedSnippet}</span> : null}
         </section>
 
         <section className={styles.metricsGrid}>
-          <Metric title="Inbound sources" value={inboundTracker?.counts.sourcePages ?? crawlCounts?.linksToTarget ?? 0} color="blue" />
-          <Metric title="Tracked links" value={trackerCounts?.links ?? crawlCounts?.links ?? 0} color="purple" />
-          <Metric title="Sitemap pages" value={result?.audit.discovery?.sitemapUrls ?? 0} color="amber" />
-          <Metric title="Broken links" value={crawlCounts?.brokenLinks ?? 0} color="red" />
+          <Metric title="Total crawled pages" value={crawlCounts?.crawledPages ?? 0} color="blue" />
+          <Metric title="Total internal links" value={crawlCounts?.links ?? 0} color="purple" />
+          <Metric title="Broken internal links" value={crawlCounts?.brokenLinks ?? 0} color="red" />
+          <Metric title="Orphan pages" value={crawlCounts?.orphanPages ?? 0} color="amber" />
+          <Metric title="Missing titles" value={crawlCounts?.missingTitles ?? 0} color="red" />
+          <Metric title="Missing meta descriptions" value={crawlCounts?.missingMetaDescriptions ?? 0} color="amber" />
+          <Metric title="Pages with no H1" value={crawlCounts?.missingH1 ?? 0} color="purple" />
+          <Metric title="SEO health score" value={crawlCounts?.seoHealthScore ?? 0} color="blue" />
         </section>
+          </>
+        ) : null}
 
-        <section id="inbound" className={styles.panel}>
+        {activeView === "internal-links" ? (
+          <>
+        <section className={styles.panel}>
           <div className={styles.panelHeader}>
             <div>
               <p className={styles.eyebrow}>AIOSEO-style lookup</p>
@@ -459,43 +549,7 @@ export default function Home() {
           />
         </section>
 
-        <section id="tracker" className={styles.panel}>
-          <div className={styles.panelHeader}>
-            <div>
-              <p className={styles.eyebrow}>Install</p>
-              <h2>Header and footer tracking snippets</h2>
-              <p>Use one sitewide install. Header is fastest; footer is safer when themes or builders delay head scripts.</p>
-            </div>
-            {copiedSnippet ? <span className={styles.copyStatus}>{copiedSnippet}</span> : null}
-          </div>
-          <div className={styles.connectionGrid}>
-            <div className={styles.connectionCard}>
-              <span>Tool ID</span>
-              <strong className={styles.trackerId}>{trackerId}</strong>
-              <small>This is the hidden ID inside your script, similar to a GTM container ID.</small>
-            </div>
-            <div className={`${styles.connectionCard} ${isConnected ? styles.connected : styles.pending}`}>
-              <span>Website deployed</span>
-              <strong>{isConnected ? "Connected" : "Not detected yet"}</strong>
-              <small>
-                {isConnected && trackerConnection?.lastSeen
-                  ? `Last signal ${new Date(trackerConnection.lastSeen).toLocaleString()}`
-                  : "Install the snippet, open your website, then refresh reports."}
-              </small>
-            </div>
-            <div className={styles.connectionCard}>
-              <span>Tracked website</span>
-              <strong>{siteHostname || "Enter website URL"}</strong>
-              <small>{trackerConnection?.pagesSeen ?? 0} pages seen · {trackerConnection?.reportsSeen ?? 0} reports</small>
-            </div>
-          </div>
-          <div className={styles.snippetGrid}>
-            <SnippetCard title="Header version" description="Paste inside the site head." snippet={headerSnippet} onCopy={() => copySnippet(headerSnippet, "Header")} />
-            <SnippetCard title="Footer version" description="Paste before the closing body tag." snippet={footerSnippet} onCopy={() => copySnippet(footerSnippet, "Footer")} />
-          </div>
-        </section>
-
-        <section id="crawl" className={styles.panel}>
+        <section className={styles.panel}>
           <div className={styles.panelHeader}>
             <div>
               <p className={styles.eyebrow}>Crawler results</p>
@@ -521,58 +575,197 @@ export default function Home() {
           </div>
           <DataTable
             emptyText="No links match the current filters."
-            columns={["Source page", "Target page", "Anchor", "Status", "Follow"]}
-            rows={filteredLinks.map((link) => [
-              <a key="source" href={link.sourceUrl} target="_blank" rel="noreferrer">{link.sourceUrl}</a>,
-              <a key="target" href={link.targetUrl} target="_blank" rel="noreferrer">{link.targetUrl}</a>,
-              link.anchorText || <span className={styles.muted} key="empty">No text</span>,
-              link.statusCode ?? "unknown",
-              link.follow ? "follow" : "nofollow",
+            columns={["Source page", "Target page", "Anchor", "Position", "Rel", "Status", "Page title", "Incoming", "Outgoing"]}
+            rows={filteredLinks.map((link) => {
+              const targetPage = pageByUrl.get(link.targetUrl);
+              const sourcePage = pageByUrl.get(link.sourceUrl);
+
+              return [
+                <a key="source" href={link.sourceUrl} target="_blank" rel="noreferrer">{link.sourceUrl}</a>,
+                <a key="target" href={link.targetUrl} target="_blank" rel="noreferrer">{link.targetUrl}</a>,
+                link.anchorText || <span className={styles.muted} key="empty">No text</span>,
+                link.position,
+                link.rel || (link.follow ? "follow" : "nofollow"),
+                link.statusCode ?? "unknown",
+                link.pageTitle || "Untitled",
+                targetPage?.incomingCount ?? 0,
+                sourcePage?.outgoingCount ?? 0,
+              ];
+            })}
+          />
+        </section>
+          </>
+        ) : null}
+
+        {activeView === "script-tracking" ? (
+        <section className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <div>
+              <p className={styles.eyebrow}>Script tracking</p>
+              <h2>Live tracking events</h2>
+              <p>Script data is stored separately from crawler data and excludes passwords, form values, payments, and private user content.</p>
+            </div>
+            <button onClick={loadTrackerReports} type="button">Refresh reports</button>
+          </div>
+          <div className={styles.connectionGrid}>
+            <div className={styles.connectionCard}>
+              <span>Tool ID</span>
+              <strong className={styles.trackerId}>{trackerId}</strong>
+              <small>This is the hidden ID inside your script, similar to a GTM container ID.</small>
+            </div>
+            <div className={`${styles.connectionCard} ${isConnected ? styles.connected : styles.pending}`}>
+              <span>Website deployed</span>
+              <strong>{isConnected ? "Connected" : "Not detected yet"}</strong>
+              <small>
+                {isConnected && trackerConnection?.lastSeen
+                  ? `Last signal ${new Date(trackerConnection.lastSeen).toLocaleString()}`
+                  : "Install the snippet, open your website, then refresh reports."}
+              </small>
+            </div>
+            <div className={styles.connectionCard}>
+              <span>Tracked website</span>
+              <strong>{siteHostname || "Enter website URL"}</strong>
+              <small>{trackerConnection?.pagesSeen ?? 0} pages seen · {trackerConnection?.reportsSeen ?? 0} reports</small>
+            </div>
+          </div>
+          <DataTable
+            emptyText="No script events found for this site ID yet."
+            columns={["Page", "Reports", "Links seen", "Last seen"]}
+            rows={(trackerSummary?.pages ?? []).map((page) => [
+              <a key="page" href={page.pageUrl} target="_blank" rel="noreferrer">{page.pageTitle || page.pageUrl}</a>,
+              page.reportCount,
+              page.links.length,
+              new Date(page.lastSeen).toLocaleString(),
             ])}
           />
         </section>
+        ) : null}
 
-        <section id="issues" className={styles.lowerGrid}>
-          <div className={styles.panel}>
-            <div className={styles.panelHeader}>
-              <div>
-                <p className={styles.eyebrow}>Coverage</p>
-                <h2>Page issues</h2>
-              </div>
-              <div className={styles.segmented}>
-                <button className={pageMode === "orphans" ? styles.active : ""} onClick={() => setPageMode("orphans")} type="button">Orphans</button>
-                <button className={pageMode === "low-links" ? styles.active : ""} onClick={() => setPageMode("low-links")} type="button">Low links</button>
-              </div>
+        {activeView === "page-issues" ? (
+        <section className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <div>
+              <p className={styles.eyebrow}>Technical SEO</p>
+              <h2>Page issues</h2>
+              <p>Filter title, description, heading, canonical, indexability, orphan, and low-link issues.</p>
             </div>
-            <div className={styles.cardList}>
-              {filteredPages.slice(0, 8).map((page) => (
-                <article key={page.id} className={styles.rowCard}>
-                  <a href={page.url} target="_blank" rel="noreferrer">{page.title || page.url}</a>
-                  <span>{page.incomingCount} incoming · {page.outgoingCount} outgoing</span>
-                </article>
-              ))}
-              {filteredPages.length === 0 ? <p className={styles.empty}>No pages found for this issue type.</p> : null}
+            {result ? (
+              <button
+                onClick={() => downloadRowsCsv(
+                  `page-issues-${result.audit.id}.csv`,
+                  ["url", "title", "status_code", "issues", "incoming_links", "outgoing_links", "crawl_date"],
+                  filteredIssuePages.map((page) => [
+                    page.url,
+                    page.title,
+                    page.statusCode,
+                    page.issueTypes.join("|"),
+                    page.incomingCount,
+                    page.outgoingCount,
+                    result.audit.createdAt,
+                  ]),
+                )}
+                type="button"
+              >
+                Export issues
+              </button>
+            ) : null}
+          </div>
+          <div className={styles.filters}>
+            <label>
+              Issue type
+              <select value={issueFilter} onChange={(event) => setIssueFilter(event.target.value)}>
+                {issueOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+            <label>
+              Status code
+              <input value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} placeholder="200, 404, unknown" />
+            </label>
+          </div>
+          <DataTable
+            emptyText="No page issues match the filters."
+            columns={["URL", "Title", "Status", "Issues", "Incoming", "Outgoing"]}
+            rows={filteredIssuePages.map((page) => [
+              <a key="url" href={page.url} target="_blank" rel="noreferrer">{page.url}</a>,
+              page.title || <span className={styles.muted} key="title">Missing title</span>,
+              page.statusCode ?? "unknown",
+              page.issueTypes.join(", "),
+              page.incomingCount,
+              page.outgoingCount,
+            ])}
+          />
+        </section>
+        ) : null}
+
+        {activeView === "link-opportunities" ? (
+        <section className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <div>
+              <p className={styles.eyebrow}>Recommendations</p>
+              <h2>Link opportunities</h2>
+              <p>Suggestions prioritize matching keywords in titles, headings, body text, and pages with stronger incoming link counts.</p>
             </div>
           </div>
-          <div className={styles.panel}>
-            <div className={styles.panelHeader}>
-              <div>
-                <p className={styles.eyebrow}>Recommendations</p>
-                <h2>Anchor opportunities</h2>
-              </div>
+          <div className={styles.cardList}>
+            {(result?.summary.suggestions ?? []).map((suggestion) => (
+              <article key={suggestion.url} className={styles.rowCard}>
+                <a href={suggestion.url} target="_blank" rel="noreferrer">{suggestion.title || suggestion.url}</a>
+                <span>{suggestion.reason}</span>
+                <strong>{suggestion.suggestedAnchor}</strong>
+              </article>
+            ))}
+            {!result ? <p className={styles.empty}>Run an audit to generate anchor opportunities.</p> : null}
+          </div>
+        </section>
+        ) : null}
+
+        {activeView === "content-decay" ? (
+        <section className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <div>
+              <p className={styles.eyebrow}>Engagement</p>
+              <h2>Content decay signals</h2>
+              <p>Early signal based on script reports: pages with very low repeat visits or no recent engagement are highlighted here.</p>
             </div>
-            <div className={styles.cardList}>
-              {(result?.summary.suggestions ?? []).slice(0, 8).map((suggestion) => (
-                <article key={suggestion.url} className={styles.rowCard}>
-                  <a href={suggestion.url} target="_blank" rel="noreferrer">{suggestion.title || suggestion.url}</a>
-                  <span>{suggestion.reason}</span>
-                  <strong>{suggestion.suggestedAnchor}</strong>
-                </article>
-              ))}
-              {!result ? <p className={styles.empty}>Run an audit to generate anchor opportunities.</p> : null}
+          </div>
+          <section className={styles.metricsGrid}>
+            <Metric title="Tracked pages" value={trackerCounts?.pages ?? 0} color="blue" />
+            <Metric title="Low engagement pages" value={lowEngagementPages} color="red" />
+            <Metric title="Internal clicks" value={trackerCounts?.clicks ?? 0} color="purple" />
+            <Metric title="Reports stored" value={trackerCounts?.reports ?? 0} color="amber" />
+          </section>
+        </section>
+        ) : null}
+
+        {activeView === "site-settings" ? (
+        <section className={styles.panel}>
+          <div className={styles.panelHeader}>
+            <div>
+              <p className={styles.eyebrow}>Settings</p>
+              <h2>Site verification and crawl settings</h2>
+              <p>The site ID is generated from your verified domain. Tracking events are accepted only when the ID and page domain match.</p>
+            </div>
+          </div>
+          <div className={styles.connectionGrid}>
+            <div className={styles.connectionCard}>
+              <span>Verified domain</span>
+              <strong>{siteHostname || "No website entered"}</strong>
+              <small>CORS rejects events when the browser origin does not match the page URL.</small>
+            </div>
+            <div className={styles.connectionCard}>
+              <span>Robots.txt</span>
+              <strong>{result?.audit.discovery?.robots?.found ? "Found" : "Not checked"}</strong>
+              <small>{result?.audit.discovery?.robots?.hasDisallowRules ? "Disallow rules detected" : "No disallow signal loaded"}</small>
+            </div>
+            <div className={styles.connectionCard}>
+              <span>Sitemap discovery</span>
+              <strong>{result?.audit.discovery?.sitemapUrls ?? 0} URLs</strong>
+              <small>{result?.audit.discovery?.sitemapsRead ?? 0} sitemap files read</small>
             </div>
           </div>
         </section>
+        ) : null}
+
       </section>
     </main>
   );

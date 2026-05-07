@@ -12,12 +12,28 @@ export type TrackedLink = {
 export type TrackerPayload = {
   trackerId?: string;
   site: string;
+  eventType?: "page_view" | "internal_click" | "external_click" | "scroll";
   pageUrl: string;
   pageTitle: string;
+  metaDescription?: string;
+  canonicalUrl?: string;
+  headings?: {
+    h1: string[];
+    h2: string[];
+    h3: string[];
+  };
   referrer: string;
+  utm?: Record<string, string>;
+  deviceType?: "desktop" | "tablet" | "mobile";
+  pageLoadTiming?: {
+    domContentLoadedMs: number | null;
+    loadCompleteMs: number | null;
+  };
+  scrollDepth?: number;
   links: TrackedLink[];
   clickedUrl?: string;
   clickedAnchorText?: string;
+  clickedExternal?: boolean;
   userAgent?: string;
   receivedAt: string;
 };
