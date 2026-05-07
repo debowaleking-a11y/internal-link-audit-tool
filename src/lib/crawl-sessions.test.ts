@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { listCrawlSessions, mergeSessionResults, resumeCrawlSession, saveCrawlSession, type CrawlSession } from "@/lib/crawl-sessions";
+import {
+  createProjectCrawlSession,
+  listCrawlSessions,
+  mergeSessionResults,
+  resumeCrawlSession,
+  saveCrawlSession,
+  type CrawlSession,
+} from "@/lib/crawl-sessions";
 import type { CrawledLink, CrawledPage } from "@/lib/crawler";
 
 function page(url: string, crawled: boolean): CrawledPage {
@@ -46,6 +53,30 @@ test("mergeSessionResults prefers crawled pages and deduplicates links", () => {
   assert.equal(merged.pages.length, 1);
   assert.equal(merged.pages[0].crawled, true);
   assert.equal(merged.links.length, 2);
+});
+
+test("createProjectCrawlSession initializes a named project session for the website", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response("", { status: 404 });
+
+  try {
+    const session = await createProjectCrawlSession({
+      websiteUrl: "https://example.net/",
+      crawlLimit: 2,
+      batchSize: 25,
+      projectName: "Example SEO Project",
+    });
+
+    assert.equal(session.projectName, "Example SEO Project");
+    assert.equal(session.websiteUrl, "https://example.net/");
+    assert.equal(session.targetUrl, "https://example.net/");
+    assert.equal(session.status, "queued");
+    assert.equal(session.nextIndex, 0);
+    assert.equal(session.progress.crawledPages, 0);
+    assert.equal(session.progress.totalPages, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("resumeCrawlSession keeps saved progress and makes a failed session runnable again", async () => {

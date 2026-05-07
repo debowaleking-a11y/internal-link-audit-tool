@@ -254,7 +254,7 @@
 }
 
 .heroSearch {
-  grid-template-columns: minmax(320px, 1fr) 160px auto auto;
+  grid-template-columns: minmax(320px, 1fr) 160px auto auto auto;
   align-items: end;
 }
 
@@ -314,7 +314,8 @@
   white-space: nowrap;
 }
 
-.heroSearch .secondaryButton {
+.heroSearch .secondaryButton,
+.secondaryButton {
   border: 1px solid rgba(18, 196, 214, 0.28);
   background: rgba(18, 196, 214, 0.1);
   color: #f5f7fb;
@@ -329,6 +330,36 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
+}
+
+.projectStrip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.projectStrip div {
+  min-height: 82px;
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 14px;
+}
+
+.projectStrip span {
+  color: #8f98aa;
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.projectStrip strong {
+  color: #ffffff;
+  font-size: 16px;
+  overflow-wrap: anywhere;
 }
 
 .jobPanel {
@@ -731,6 +762,7 @@
 
   .heroSearch,
   .metricsGrid,
+  .projectStrip,
   .connectionGrid,
   .snippetGrid,
   .lowerGrid {
@@ -754,6 +786,7 @@
   .filters,
   .lookupRow,
   .metricsGrid,
+  .projectStrip,
   .connectionGrid,
   .snippetGrid,
   .lowerGrid {

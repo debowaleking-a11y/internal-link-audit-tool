@@ -5,6 +5,7 @@ import { normalizeUrl } from "./url";
 
 export type CrawlSession = {
   id: string;
+  projectName?: string;
   websiteUrl: string;
   targetUrl: string;
   crawlLimit: number;
@@ -108,7 +109,7 @@ export async function listCrawlSessions(websiteUrl?: string) {
     .sort((first, second) => second.updatedAt.localeCompare(first.updatedAt));
 }
 
-export async function createCrawlSession(input: { websiteUrl: string; crawlLimit: number; batchSize?: number }) {
+export async function createProjectCrawlSession(input: { websiteUrl: string; crawlLimit: number; batchSize?: number; projectName?: string }) {
   const websiteUrl = normalizeUrl(input.websiteUrl);
   const crawlLimit = Math.max(1, Math.min(Math.floor(input.crawlLimit), 5000));
   const batchSize = Math.max(25, Math.min(Math.floor(input.batchSize ?? 100), 250));
@@ -116,6 +117,7 @@ export async function createCrawlSession(input: { websiteUrl: string; crawlLimit
   const createdAt = new Date().toISOString();
   const session: CrawlSession = {
     id: makeSessionId(),
+    projectName: input.projectName?.trim() || new URL(websiteUrl).hostname,
     websiteUrl,
     targetUrl: websiteUrl,
     crawlLimit,
@@ -140,6 +142,10 @@ export async function createCrawlSession(input: { websiteUrl: string; crawlLimit
   };
 
   return saveCrawlSession(session);
+}
+
+export async function createCrawlSession(input: { websiteUrl: string; crawlLimit: number; batchSize?: number }) {
+  return createProjectCrawlSession(input);
 }
 
 export function mergeSessionResults(

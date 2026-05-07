@@ -87,7 +87,7 @@ POST /.netlify/functions/crawl-session-background
 
 Batched crawl sessions discover sitemap URLs first, crawl a safe batch, merge the batch into the session report, and continue with the next batch until the session finishes or fails. The dashboard shows total crawled pages, total discovered pages, current batch, and current URL.
 
-Sessions are project-level records for the website URL. If a crawl fails or the browser is refreshed, use **Load saved crawl** to bring back the latest session for that website, then use **Resume crawl** to continue from the saved `nextIndex` instead of starting over.
+Sessions are project-level records for the website URL. Use **Create project** to start a saved Semrush-style project session for the website. If a crawl fails or the browser is refreshed, use **Load project** to bring back the latest session for that website, then use **Resume crawl** to continue from the saved `nextIndex` instead of starting over.
 
 ## Live Tracking Snippets
 

@@ -158,6 +158,7 @@ type TrackerConnection = {
 
 type CrawlSession = {
   id: string;
+  projectName?: string;
   websiteUrl: string;
   targetUrl: string;
   crawlLimit: number;
@@ -296,6 +297,7 @@ export default function Home() {
   const isConnected = trackerConnection?.connected ?? false;
   const trackerLabel = !trackerChecked ? "Checking snippet..." : isConnected ? "Website deployed" : "Snippet not detected yet";
   const liveStatusLabel = !trackerChecked ? "Checking install" : isConnected ? "Website connected" : "Waiting for install";
+  const currentProjectName = backgroundJob?.projectName ?? siteHostname ?? "No project created";
 
   const loadLatestCrawlSession = useCallback(async (options?: { silent?: boolean }) => {
     if (!siteHostname) {
@@ -430,15 +432,20 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, [loadLatestCrawlSession]);
 
-  async function startBackgroundCrawl() {
+  async function createProjectSession() {
     setBackgroundJob(null);
-    setBackgroundStatus("Starting background crawl...");
+    setBackgroundStatus("Creating project session...");
 
     try {
       const response = await fetch("/api/crawl-sessions", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ websiteUrl, crawlLimit, batchSize: 100 }),
+        body: JSON.stringify({
+          websiteUrl,
+          crawlLimit,
+          batchSize: 100,
+          projectName: siteHostname ? `${siteHostname} SEO Project` : undefined,
+        }),
       });
       const data = await response.json();
 
@@ -447,9 +454,9 @@ export default function Home() {
       }
 
       setBackgroundJob(data.session);
-      setBackgroundStatus("Batched crawl session started. Use refresh to check progress.");
+      setBackgroundStatus("Project created. The crawl session is now saved and resumable.");
     } catch (jobError) {
-      setBackgroundStatus(jobError instanceof Error ? jobError.message : "Could not start background crawl.");
+      setBackgroundStatus(jobError instanceof Error ? jobError.message : "Could not create project session.");
     }
   }
 
@@ -628,6 +635,7 @@ export default function Home() {
           </div>
           <div className={styles.topActions}>
             {result ? <button onClick={() => downloadCsv(result.audit)} type="button">Export CSV</button> : null}
+            <button onClick={createProjectSession} type="button">Create project</button>
             <button onClick={() => loadTrackerReports()} type="button">Refresh reports</button>
           </div>
         </header>
@@ -662,9 +670,23 @@ export default function Home() {
               />
             </label>
             <button disabled={isLoading} type="submit">{isLoading ? "Auditing..." : "Run audit"}</button>
-            <button className={styles.secondaryButton} onClick={() => loadLatestCrawlSession()} type="button">Load saved crawl</button>
-            <button className={styles.secondaryButton} onClick={startBackgroundCrawl} type="button">Start background crawl</button>
+            <button className={styles.secondaryButton} onClick={() => loadLatestCrawlSession()} type="button">Load project</button>
+            <button className={styles.secondaryButton} onClick={createProjectSession} type="button">Create project</button>
           </form>
+          <div className={styles.projectStrip}>
+            <div>
+              <span>Project session</span>
+              <strong>{currentProjectName}</strong>
+            </div>
+            <div>
+              <span>Saved session</span>
+              <strong>{backgroundJob ? backgroundJob.status : "Not created yet"}</strong>
+            </div>
+            <div>
+              <span>Website scope</span>
+              <strong>{siteHostname || "Enter website"}</strong>
+            </div>
+          </div>
           <div className={styles.jobPanel}>
             <div>
               <strong>Large crawl mode</strong>
@@ -685,8 +707,8 @@ export default function Home() {
           </div>
           {backgroundStatus ? <p className={styles.statusText}>{backgroundStatus}</p> : null}
           {!backgroundJob && backgroundStatus.includes("old crawl job") ? (
-            <button className={styles.secondaryButton} onClick={startBackgroundCrawl} type="button">
-              Start fresh crawl
+            <button className={styles.secondaryButton} onClick={createProjectSession} type="button">
+              Create fresh project
             </button>
           ) : null}
           {error ? <p className={styles.error}>{error}</p> : null}
