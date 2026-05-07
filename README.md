@@ -14,7 +14,7 @@ A free-friendly Next.js MVP for crawling a website, extracting internal links, f
 - Copy a GTM-style header or footer JavaScript snippet with a unique `ILA-...` site ID.
 - Look up inbound internal links to a supplied target URL from live snippet reports.
 - Confirm when the snippet is connected and sending events.
-- Start a Netlify Background Function crawl job for larger crawls up to 1,500 pages.
+- Start a batched Netlify Background Function crawl session for larger crawls up to 5,000 pages.
 
 ## Tech Stack
 
@@ -61,16 +61,17 @@ The included `netlify.toml` sets the same build command, publish directory, and 
 1. Enter a website URL, such as `https://www.vidau.ai/`.
 2. Pick a crawl limit. Start small, then increase it after confirming the crawl pattern.
 3. Click **Run audit** for a quick full-site crawl.
-4. For larger crawls, click **Start background crawl**, then use **Refresh job** until it completes.
+4. For larger crawls, click **Start background crawl**, then use **Refresh job** until the batched session completes.
 5. Review extracted links, page issues, and anchor opportunities.
 6. Use **Export CSV** to download the current result rows.
 
 ## Background Crawls
 
-The app includes a Netlify Background Function at `netlify/functions/crawl-background.ts`. It stores crawl jobs in Netlify Blobs, so the browser can start a job, receive a quick response, and check progress later.
+The app includes single-job background crawling plus batched crawl sessions. Batched sessions store crawl progress and merged results in Netlify Blobs, so the browser can start a large crawl, receive a quick response, and check progress later.
 
 - Quick audit API: capped at 200 pages for fast request/response use.
-- Background crawl API: capped at 1,500 pages for larger crawls.
+- Legacy background crawl API: capped at 1,500 pages for single jobs.
+- Batched crawl session API: capped at 5,000 pages, processed in batches of up to 250 URLs.
 - Netlify Background Functions can run longer than regular functions, but they are still not a replacement for a dedicated queue/worker once crawls need tens of thousands of pages.
 
 Endpoints:
@@ -79,7 +80,12 @@ Endpoints:
 POST /api/crawl-jobs
 GET /api/crawl-jobs/:jobId
 POST /.netlify/functions/crawl-background
+POST /api/crawl-sessions
+GET /api/crawl-sessions/:sessionId
+POST /.netlify/functions/crawl-session-background
 ```
+
+Batched crawl sessions discover sitemap URLs first, crawl a safe batch, merge the batch into the session report, and continue with the next batch until the session finishes or fails. The dashboard shows total crawled pages, total discovered pages, current batch, and current URL.
 
 ## Live Tracking Snippets
 

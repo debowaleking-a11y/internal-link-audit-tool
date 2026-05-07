@@ -249,6 +249,26 @@ async function discoverSitemapUrls(websiteUrl: string, limit: number) {
   };
 }
 
+export async function discoverWebsiteUrls(websiteUrl: string, limit: number) {
+  const normalizedWebsiteUrl = normalizeUrl(websiteUrl);
+  const sitemapDiscovery = await discoverSitemapUrls(normalizedWebsiteUrl, Math.max(1, limit - 1));
+  const urls = [
+    normalizedWebsiteUrl,
+    ...sitemapDiscovery.urls.filter((url) => url !== normalizedWebsiteUrl),
+  ].slice(0, limit);
+
+  return {
+    urls,
+    discovery: {
+      sitemapUrls: sitemapDiscovery.urls.length,
+      sitemapsRead: sitemapDiscovery.sitemapCount,
+      crawledFromSitemap: 0,
+      robots: sitemapDiscovery.robots,
+      stoppedEarly: sitemapDiscovery.urls.length + 1 > urls.length,
+    },
+  };
+}
+
 async function mapWithConcurrency<T, R>(
   items: T[],
   concurrency: number,
@@ -308,6 +328,8 @@ export async function crawlWebsite(input: {
   crawlLimit: number;
   maxCrawlLimit?: number;
   maxDurationMs?: number;
+  seedUrls?: string[];
+  enqueueDiscoveredLinks?: boolean;
   onProgress?: (progress: { crawledPages: number; queuedPages: number; currentUrl: string }) => Promise<void> | void;
 }) {
   const websiteUrl = normalizeUrl(input.websiteUrl);
@@ -315,8 +337,24 @@ export async function crawlWebsite(input: {
   const crawlLimit = Math.max(1, Math.min(input.crawlLimit, input.maxCrawlLimit ?? 250));
   const deadline = Date.now() + (input.maxDurationMs ?? 9000);
   const hasTime = (paddingMs = 0) => Date.now() + paddingMs < deadline;
-  const sitemapDiscovery = await discoverSitemapUrls(websiteUrl, crawlLimit);
-  const seeds: CrawlSeed[] = [
+  const explicitSeeds = input.seedUrls?.flatMap((url, index) => {
+    try {
+      const normalized = normalizeUrl(url, websiteUrl);
+      return isSameDomain(normalized, websiteUrl)
+        ? [{ url: normalized, source: index === 0 && normalized === websiteUrl ? "homepage" : "sitemap" } satisfies CrawlSeed]
+        : [];
+    } catch {
+      return [];
+    }
+  });
+  const sitemapDiscovery = explicitSeeds
+    ? {
+        urls: explicitSeeds.map((seed) => seed.url).filter((url) => url !== websiteUrl),
+        sitemapCount: 0,
+        robots: undefined,
+      }
+    : await discoverSitemapUrls(websiteUrl, crawlLimit);
+  const seeds: CrawlSeed[] = explicitSeeds ?? [
     { url: websiteUrl, source: "homepage" },
     ...sitemapDiscovery.urls
       .filter((url) => url !== websiteUrl)
@@ -411,7 +449,12 @@ export async function crawlWebsite(input: {
             isBroken: false,
           });
 
-          if (!queued.has(targetUrl) && !crawled.has(targetUrl) && queue.length + crawled.size < crawlLimit) {
+          if (
+            input.enqueueDiscoveredLinks !== false
+            && !queued.has(targetUrl)
+            && !crawled.has(targetUrl)
+            && queue.length + crawled.size < crawlLimit
+          ) {
             queued.add(targetUrl);
             queue.push({ url: targetUrl, source: "link" });
           }

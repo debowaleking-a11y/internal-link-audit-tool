@@ -156,18 +156,23 @@ type TrackerConnection = {
   reportsSeen: number;
 };
 
-type BackgroundCrawlJob = {
+type CrawlSession = {
   id: string;
   websiteUrl: string;
+  targetUrl: string;
   crawlLimit: number;
+  batchSize: number;
   status: "queued" | "running" | "completed" | "failed";
   createdAt: string;
   updatedAt: string;
   startedAt: string | null;
   finishedAt: string | null;
+  discoveredUrls: string[];
+  nextIndex: number;
   progress: {
     crawledPages: number;
-    queuedPages: number;
+    totalPages: number;
+    currentBatch: number;
     currentUrl: string;
   };
   error: string | null;
@@ -276,7 +281,7 @@ export default function Home() {
   const [result, setResult] = useState<AuditResponse | null>(null);
   const [trackerSummary, setTrackerSummary] = useState<TrackerSummary | null>(null);
   const [trackerConnection, setTrackerConnection] = useState<TrackerConnection | null>(null);
-  const [backgroundJob, setBackgroundJob] = useState<BackgroundCrawlJob | null>(null);
+  const [backgroundJob, setBackgroundJob] = useState<CrawlSession | null>(null);
   const [backgroundStatus, setBackgroundStatus] = useState("");
   const [inboundTracker, setInboundTracker] = useState<InboundTrackerResult | null>(null);
   const [trackerStatus, setTrackerStatus] = useState("");
@@ -382,10 +387,10 @@ export default function Home() {
     setBackgroundStatus("Starting background crawl...");
 
     try {
-      const response = await fetch("/api/crawl-jobs", {
+      const response = await fetch("/api/crawl-sessions", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ websiteUrl, crawlLimit }),
+        body: JSON.stringify({ websiteUrl, crawlLimit, batchSize: 100 }),
       });
       const data = await response.json();
 
@@ -393,8 +398,8 @@ export default function Home() {
         throw new Error(data.error ?? "Could not start background crawl.");
       }
 
-      setBackgroundJob(data.job);
-      setBackgroundStatus("Background crawl started. Use refresh to check progress.");
+      setBackgroundJob(data.session);
+      setBackgroundStatus("Batched crawl session started. Use refresh to check progress.");
     } catch (jobError) {
       setBackgroundStatus(jobError instanceof Error ? jobError.message : "Could not start background crawl.");
     }
@@ -409,7 +414,7 @@ export default function Home() {
     setBackgroundStatus("Checking background crawl...");
 
     try {
-      const response = await fetch(`/api/crawl-jobs/${backgroundJob.id}?_=${Date.now()}`, { cache: "no-store" });
+      const response = await fetch(`/api/crawl-sessions/${backgroundJob.id}?_=${Date.now()}`, { cache: "no-store" });
       const data = await response.json();
 
       if (!response.ok) {
@@ -421,20 +426,20 @@ export default function Home() {
         throw new Error(data.error ?? "Could not load background crawl.");
       }
 
-      setBackgroundJob(data.job);
+      setBackgroundJob(data.session);
 
-      if (data.job.result) {
-        setResult(data.job.result);
+      if (data.session.result) {
+        setResult(data.session.result);
         setTargetFilter("");
         setMode("all");
       }
 
       setBackgroundStatus(
-        data.job.status === "completed"
+        data.session.status === "completed"
           ? "Background crawl completed and loaded into the dashboard."
-          : data.job.status === "failed"
-            ? data.job.error ?? "Background crawl failed."
-          : `Background crawl is ${data.job.status}.`,
+          : data.session.status === "failed"
+            ? data.session.error ?? "Background crawl failed."
+          : `Background crawl is ${data.session.status}.`,
       );
     } catch (jobError) {
       setBackgroundStatus(jobError instanceof Error ? jobError.message : "Could not load background crawl.");
@@ -576,7 +581,7 @@ export default function Home() {
               Crawl limit
               <input
                 min={1}
-                max={1500}
+                max={5000}
                 type="number"
                 value={crawlLimit}
                 onChange={(event) => setCrawlLimit(Number(event.target.value))}
@@ -588,12 +593,13 @@ export default function Home() {
           <div className={styles.jobPanel}>
             <div>
               <strong>Large crawl mode</strong>
-              <span>Instant audits stay safest up to 200 pages. Background crawls can run up to 1,500 pages on Netlify.</span>
+              <span>Instant audits stay safest up to 200 pages. Background sessions can crawl up to 5,000 pages in batches.</span>
             </div>
             {backgroundJob ? (
               <div className={styles.jobMeta}>
                 <span>{backgroundJob.status}</span>
-                <strong>{backgroundJob.progress.crawledPages} / {backgroundJob.crawlLimit} pages</strong>
+                <strong>{backgroundJob.progress.crawledPages} / {backgroundJob.progress.totalPages} pages</strong>
+                <small>Batch {backgroundJob.progress.currentBatch || 1} · {backgroundJob.nextIndex} queued</small>
                 {backgroundJob.progress.currentUrl ? <small>{backgroundJob.progress.currentUrl}</small> : null}
                 <button onClick={refreshBackgroundCrawl} type="button">Refresh job</button>
               </div>
