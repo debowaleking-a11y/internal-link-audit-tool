@@ -297,6 +297,46 @@ export default function Home() {
   const trackerLabel = !trackerChecked ? "Checking snippet..." : isConnected ? "Website deployed" : "Snippet not detected yet";
   const liveStatusLabel = !trackerChecked ? "Checking install" : isConnected ? "Website connected" : "Waiting for install";
 
+  const loadLatestCrawlSession = useCallback(async (options?: { silent?: boolean }) => {
+    if (!siteHostname) {
+      return;
+    }
+
+    if (!options?.silent) {
+      setBackgroundStatus("Loading latest crawl session...");
+    }
+
+    try {
+      const params = new URLSearchParams({
+        websiteUrl,
+        _: String(Date.now()),
+      });
+      const response = await fetch(`/api/crawl-sessions?${params.toString()}`, { cache: "no-store" });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not load latest crawl session.");
+      }
+
+      if (data.latestSession) {
+        setBackgroundJob(data.latestSession);
+        if (data.latestSession.result) {
+          setResult(data.latestSession.result);
+          setTargetFilter("");
+          setMode("all");
+        }
+      }
+
+      if (!options?.silent) {
+        setBackgroundStatus(data.latestSession ? "Latest crawl session loaded." : "No saved crawl session for this website yet.");
+      }
+    } catch (sessionError) {
+      if (!options?.silent) {
+        setBackgroundStatus(sessionError instanceof Error ? sessionError.message : "Could not load latest crawl session.");
+      }
+    }
+  }, [siteHostname, websiteUrl]);
+
   async function runAudit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsLoading(true);
@@ -382,6 +422,14 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, [loadTrackerReports]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadLatestCrawlSession({ silent: true });
+    }, 700);
+
+    return () => window.clearTimeout(timer);
+  }, [loadLatestCrawlSession]);
+
   async function startBackgroundCrawl() {
     setBackgroundJob(null);
     setBackgroundStatus("Starting background crawl...");
@@ -443,6 +491,32 @@ export default function Home() {
       );
     } catch (jobError) {
       setBackgroundStatus(jobError instanceof Error ? jobError.message : "Could not load background crawl.");
+    }
+  }
+
+  async function resumeBackgroundCrawl() {
+    if (!backgroundJob) {
+      setBackgroundStatus("Load or start a crawl session first.");
+      return;
+    }
+
+    setBackgroundStatus("Resuming crawl session from saved progress...");
+
+    try {
+      const response = await fetch(`/api/crawl-sessions/${backgroundJob.id}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not resume crawl session.");
+      }
+
+      setBackgroundJob(data.session);
+      setBackgroundStatus("Crawl session resumed. Use refresh to check progress.");
+    } catch (resumeError) {
+      setBackgroundStatus(resumeError instanceof Error ? resumeError.message : "Could not resume crawl session.");
     }
   }
 
@@ -588,6 +662,7 @@ export default function Home() {
               />
             </label>
             <button disabled={isLoading} type="submit">{isLoading ? "Auditing..." : "Run audit"}</button>
+            <button className={styles.secondaryButton} onClick={() => loadLatestCrawlSession()} type="button">Load saved crawl</button>
             <button className={styles.secondaryButton} onClick={startBackgroundCrawl} type="button">Start background crawl</button>
           </form>
           <div className={styles.jobPanel}>
@@ -601,6 +676,9 @@ export default function Home() {
                 <strong>{backgroundJob.progress.crawledPages} / {backgroundJob.progress.totalPages} pages</strong>
                 <small>Batch {backgroundJob.progress.currentBatch || 1} · {backgroundJob.nextIndex} queued</small>
                 {backgroundJob.progress.currentUrl ? <small>{backgroundJob.progress.currentUrl}</small> : null}
+                {backgroundJob.status === "failed" || backgroundJob.status === "queued" ? (
+                  <button onClick={resumeBackgroundCrawl} type="button">Resume crawl</button>
+                ) : null}
                 <button onClick={refreshBackgroundCrawl} type="button">Refresh job</button>
               </div>
             ) : null}

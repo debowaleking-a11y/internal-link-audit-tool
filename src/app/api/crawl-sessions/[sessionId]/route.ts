@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCrawlSession, runNextCrawlSessionBatch, saveCrawlSession } from "@/lib/crawl-sessions";
+import { getCrawlSession, resumeCrawlSession, runNextCrawlSessionBatch, saveCrawlSession } from "@/lib/crawl-sessions";
 
 export const runtime = "nodejs";
 
@@ -48,6 +48,22 @@ export async function GET(request: Request, context: { params: Promise<{ session
   if (session.status === "queued") {
     await triggerSessionWorker(new URL(request.url).origin, sessionId, session);
   }
+
+  return NextResponse.json({ session }, { headers: { "cache-control": "no-store, max-age=0" } });
+}
+
+export async function POST(request: Request, context: { params: Promise<{ sessionId: string }> }) {
+  const { sessionId } = await context.params;
+  const session = await resumeCrawlSession(sessionId);
+
+  if (!session) {
+    return NextResponse.json(
+      { error: "Crawl session not found. Start a fresh crawl session." },
+      { status: 404, headers: { "cache-control": "no-store, max-age=0" } },
+    );
+  }
+
+  await triggerSessionWorker(new URL(request.url).origin, sessionId, session);
 
   return NextResponse.json({ session }, { headers: { "cache-control": "no-store, max-age=0" } });
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createCrawlSession, runNextCrawlSessionBatch } from "@/lib/crawl-sessions";
+import { createCrawlSession, listCrawlSessions, runNextCrawlSessionBatch } from "@/lib/crawl-sessions";
 
 export const runtime = "nodejs";
 
@@ -44,6 +44,24 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Could not create crawl session." },
+      { status: 400, headers: { "cache-control": "no-store, max-age=0" } },
+    );
+  }
+}
+
+export async function GET(request: Request) {
+  try {
+    const url = new URL(request.url);
+    const websiteUrl = url.searchParams.get("websiteUrl") ?? "";
+    const sessions = await listCrawlSessions(websiteUrl || undefined);
+
+    return NextResponse.json(
+      { sessions, latestSession: sessions[0] ?? null },
+      { headers: { "cache-control": "no-store, max-age=0" } },
+    );
+  } catch (error) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Could not load crawl sessions." },
       { status: 400, headers: { "cache-control": "no-store, max-age=0" } },
     );
   }

@@ -84,6 +84,30 @@ export async function getCrawlSession(sessionId: string) {
   return store.get(`${sessionId}.json`, { type: "json" }) as Promise<CrawlSession | null>;
 }
 
+export async function listCrawlSessions(websiteUrl?: string) {
+  const normalizedWebsiteUrl = websiteUrl ? normalizeUrl(websiteUrl) : "";
+
+  if (shouldUseLocalSessions()) {
+    return [...localSessions.values()]
+      .filter((session) => !normalizedWebsiteUrl || session.websiteUrl === normalizedWebsiteUrl)
+      .sort((first, second) => second.updatedAt.localeCompare(first.updatedAt));
+  }
+
+  const store = getCrawlSessionStore();
+  const { blobs } = await store.list();
+  const sessions = await Promise.all(
+    blobs
+      .map((blob) => blob.key)
+      .filter((key) => key.endsWith(".json"))
+      .map(async (key) => store.get(key, { type: "json" }) as Promise<CrawlSession | null>),
+  );
+
+  return sessions
+    .filter((session): session is CrawlSession => session !== null)
+    .filter((session) => !normalizedWebsiteUrl || session.websiteUrl === normalizedWebsiteUrl)
+    .sort((first, second) => second.updatedAt.localeCompare(first.updatedAt));
+}
+
 export async function createCrawlSession(input: { websiteUrl: string; crawlLimit: number; batchSize?: number }) {
   const websiteUrl = normalizeUrl(input.websiteUrl);
   const crawlLimit = Math.max(1, Math.min(Math.floor(input.crawlLimit), 5000));
@@ -142,6 +166,32 @@ export function mergeSessionResults(
     pages: [...pageMap.values()],
     links: [...linkMap.values()],
   };
+}
+
+export async function resumeCrawlSession(sessionId: string) {
+  const session = await getCrawlSession(sessionId);
+
+  if (!session) {
+    return null;
+  }
+
+  if (session.status === "completed") {
+    return session;
+  }
+
+  return saveCrawlSession({
+    ...session,
+    status: "queued",
+    finishedAt: null,
+    error: null,
+    result: undefined,
+    progress: {
+      ...session.progress,
+      crawledPages: session.pages.filter((page) => page.crawled).length,
+      totalPages: session.discoveredUrls.length,
+      currentUrl: "",
+    },
+  });
 }
 
 function buildSessionResult(session: CrawlSession) {

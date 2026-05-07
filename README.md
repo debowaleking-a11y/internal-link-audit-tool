@@ -87,6 +87,8 @@ POST /.netlify/functions/crawl-session-background
 
 Batched crawl sessions discover sitemap URLs first, crawl a safe batch, merge the batch into the session report, and continue with the next batch until the session finishes or fails. The dashboard shows total crawled pages, total discovered pages, current batch, and current URL.
 
+Sessions are project-level records for the website URL. If a crawl fails or the browser is refreshed, use **Load saved crawl** to bring back the latest session for that website, then use **Resume crawl** to continue from the saved `nextIndex` instead of starting over.
+
 ## Live Tracking Snippets
 
 The dashboard generates a unique `ILA-...` site ID from the website URL. Tap the Tool ID on the Overview dashboard to reveal the snippets.
