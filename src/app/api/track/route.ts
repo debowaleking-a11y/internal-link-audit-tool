@@ -107,7 +107,8 @@ export async function OPTIONS(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const rawBody = await request.text();
+    const body = rawBody ? JSON.parse(rawBody) : {};
     const pageUrl = cleanUrl(body.pageUrl);
     const site = cleanText(body.site || (pageUrl ? new URL(pageUrl).hostname : ""));
     const origin = request.headers.get("origin");

@@ -129,7 +129,7 @@ export async function GET(request: Request) {
 
     var body = JSON.stringify(payload);
     if (navigator.sendBeacon) {
-      var blob = new Blob([body], { type: "application/json" });
+      var blob = new Blob([body], { type: "text/plain;charset=UTF-8" });
       var queued = navigator.sendBeacon(endpoint, blob);
       if (!queued) {
         logTrackingFailure("sendBeacon could not queue tracking event.", {
@@ -144,7 +144,7 @@ export async function GET(request: Request) {
 
     fetch(endpoint, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "text/plain;charset=UTF-8" },
       body: body,
       keepalive: true
     }).then(function (response) {
