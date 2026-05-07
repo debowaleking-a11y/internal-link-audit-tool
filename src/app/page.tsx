@@ -377,6 +377,7 @@ export default function Home() {
   }, [loadTrackerReports]);
 
   async function startBackgroundCrawl() {
+    setBackgroundJob(null);
     setBackgroundStatus("Starting background crawl...");
 
     try {
@@ -413,6 +414,8 @@ export default function Home() {
       if (!response.ok) {
         if (response.status === 404) {
           setBackgroundJob(null);
+          setBackgroundStatus("That old crawl job expired. Click Start background crawl to create a fresh job.");
+          return;
         }
         throw new Error(data.error ?? "Could not load background crawl.");
       }
@@ -593,6 +596,11 @@ export default function Home() {
             ) : null}
           </div>
           {backgroundStatus ? <p className={styles.statusText}>{backgroundStatus}</p> : null}
+          {!backgroundJob && backgroundStatus.includes("old crawl job") ? (
+            <button className={styles.secondaryButton} onClick={startBackgroundCrawl} type="button">
+              Start fresh crawl
+            </button>
+          ) : null}
           {error ? <p className={styles.error}>{error}</p> : null}
           {result?.audit.discovery?.stoppedEarly ? (
             <p className={styles.warning}>Returned a partial audit before the free hosting time limit.</p>
