@@ -279,6 +279,7 @@ export default function Home() {
   const [backgroundStatus, setBackgroundStatus] = useState("");
   const [inboundTracker, setInboundTracker] = useState<InboundTrackerResult | null>(null);
   const [trackerStatus, setTrackerStatus] = useState("");
+  const [trackerChecked, setTrackerChecked] = useState(false);
   const [copiedSnippet, setCopiedSnippet] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -287,6 +288,8 @@ export default function Home() {
   const headerSnippet = headerSnippetFor(trackerId);
   const footerSnippet = footerSnippetFor(trackerId);
   const isConnected = trackerConnection?.connected ?? false;
+  const trackerLabel = !trackerChecked ? "Checking snippet..." : isConnected ? "Website deployed" : "Snippet not detected yet";
+  const liveStatusLabel = !trackerChecked ? "Checking install" : isConnected ? "Website connected" : "Waiting for install";
 
   async function runAudit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -322,6 +325,7 @@ export default function Home() {
   }
 
   const loadTrackerReports = useCallback(async (options?: { silent?: boolean }) => {
+    setTrackerChecked(false);
     if (!options?.silent) {
       setTrackerStatus("Loading live reports...");
     }
@@ -336,8 +340,9 @@ export default function Home() {
       if (siteHostname) {
         params.set("site", siteHostname);
       }
+      params.set("_", String(Date.now()));
 
-      const response = await fetch(`/api/track/reports?${params.toString()}`);
+      const response = await fetch(`/api/track/reports?${params.toString()}`, { cache: "no-store" });
       const data = await response.json();
 
       if (!response.ok) {
@@ -347,6 +352,7 @@ export default function Home() {
       setTrackerSummary(data.summary);
       setTrackerConnection(data.connection);
       setInboundTracker(data.inbound);
+      setTrackerChecked(true);
       if (!options?.silent) {
         setTrackerStatus(
           data.connection?.connected
@@ -355,6 +361,7 @@ export default function Home() {
         );
       }
     } catch (reportError) {
+      setTrackerChecked(true);
       if (!options?.silent) {
         setTrackerStatus(reportError instanceof Error ? reportError.message : "Could not load tracker reports.");
       }
@@ -521,7 +528,7 @@ export default function Home() {
         </nav>
         <div className={styles.sideNote}>
           <span>Live status</span>
-          <strong>{isConnected ? "Website connected" : "Waiting for install"}</strong>
+          <strong>{liveStatusLabel}</strong>
         </div>
       </aside>
 
@@ -548,7 +555,7 @@ export default function Home() {
             </p>
             <button className={styles.installPill} onClick={() => setShowSnippets((value) => !value)} type="button">
               <span>{trackerId}</span>
-              <strong>{isConnected ? "Website deployed" : "Snippet not detected yet"}</strong>
+              <strong>{trackerLabel}</strong>
             </button>
           </div>
           <form className={styles.heroSearch} onSubmit={runAudit}>
@@ -724,7 +731,7 @@ export default function Home() {
             </div>
             <div className={`${styles.connectionCard} ${isConnected ? styles.connected : styles.pending}`}>
               <span>Website deployed</span>
-              <strong>{isConnected ? "Connected" : "Not detected yet"}</strong>
+              <strong>{!trackerChecked ? "Checking..." : isConnected ? "Connected" : "Not detected yet"}</strong>
               <small>
                 {isConnected && trackerConnection?.lastSeen
                   ? `Last signal ${new Date(trackerConnection.lastSeen).toLocaleString()}`

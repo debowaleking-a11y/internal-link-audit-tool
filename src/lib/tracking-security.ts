@@ -26,5 +26,14 @@ export function originMatchesPage(origin: string | null, pageUrl: string) {
 }
 
 export function isValidSiteId(site: string, trackerId: unknown) {
-  return cleanTrackerId(trackerId) === trackerIdForWebsite(`https://${site}`);
+  const cleanedTrackerId = cleanTrackerId(trackerId);
+  const normalizedSite = site.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  const bareSite = normalizedSite.replace(/^www\./, "");
+  const candidates = new Set([
+    normalizedSite,
+    bareSite,
+    `www.${bareSite}`,
+  ]);
+
+  return [...candidates].some((candidate) => cleanedTrackerId === trackerIdForWebsite(`https://${candidate}`));
 }

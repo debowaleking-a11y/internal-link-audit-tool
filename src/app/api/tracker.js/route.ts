@@ -201,7 +201,7 @@ export async function GET(request: Request) {
   return new Response(script, {
     headers: {
       "content-type": "application/javascript; charset=utf-8",
-      "cache-control": "public, max-age=300",
+      "cache-control": "no-store, max-age=0",
     },
   });
 }

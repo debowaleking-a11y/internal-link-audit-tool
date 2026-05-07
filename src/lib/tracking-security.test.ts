@@ -8,6 +8,7 @@ test("tracker ID is stable and validates against the site hostname", () => {
 
   assert.match(trackerId, /^ILA-VIDAU-[A-Z0-9]+$/);
   assert.equal(isValidSiteId("www.vidau.ai", trackerId), true);
+  assert.equal(isValidSiteId("vidau.ai", trackerId), true);
   assert.equal(isValidSiteId("www.vidau.ai", "ILA-WRONG-12345"), false);
 });
 
