@@ -1,6 +1,11 @@
 import { after } from "next/server";
 import { NextResponse } from "next/server";
-import { createProjectCrawlSession, listCrawlSessions, runNextCrawlSessionBatch } from "@/lib/crawl-sessions";
+import {
+  createProjectCrawlSession,
+  listCrawlSessions,
+  runNextCrawlSessionBatch,
+  toDashboardCrawlSession,
+} from "@/lib/crawl-sessions";
 import { getJsonStoreStatus } from "@/lib/json-store";
 
 export const runtime = "nodejs";
@@ -34,7 +39,7 @@ export async function POST(request: Request) {
     triggerSessionWorker(session);
 
     return NextResponse.json(
-      { session, storage: getJsonStoreStatus() },
+      { session: toDashboardCrawlSession(session), storage: getJsonStoreStatus() },
       { status: 202, headers: { "cache-control": "no-store, max-age=0" } },
     );
   } catch (error) {
@@ -52,7 +57,11 @@ export async function GET(request: Request) {
     const sessions = await listCrawlSessions(websiteUrl || undefined);
 
     return NextResponse.json(
-      { sessions, latestSession: sessions[0] ?? null, storage: getJsonStoreStatus() },
+      {
+        sessions: sessions.map(toDashboardCrawlSession),
+        latestSession: sessions[0] ? toDashboardCrawlSession(sessions[0]) : null,
+        storage: getJsonStoreStatus(),
+      },
       { headers: { "cache-control": "no-store, max-age=0" } },
     );
   } catch (error) {

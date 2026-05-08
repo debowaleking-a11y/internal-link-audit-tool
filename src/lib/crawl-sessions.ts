@@ -42,6 +42,27 @@ export type CrawlSession = {
   result?: ReturnType<typeof buildAuditResponse>;
 };
 
+export function toDashboardCrawlSession(session: CrawlSession) {
+  return {
+    id: session.id,
+    projectName: session.projectName,
+    websiteUrl: session.websiteUrl,
+    targetUrl: session.targetUrl,
+    crawlLimit: session.crawlLimit,
+    batchSize: session.batchSize,
+    status: session.status,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    startedAt: session.startedAt,
+    finishedAt: session.finishedAt,
+    discoveredUrls: [],
+    nextIndex: session.nextIndex,
+    progress: session.progress,
+    error: session.error,
+    result: session.result,
+  };
+}
+
 function makeSessionId() {
   return typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `session-${Date.now()}`;
 }

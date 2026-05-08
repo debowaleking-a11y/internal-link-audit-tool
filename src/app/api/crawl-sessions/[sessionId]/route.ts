@@ -8,6 +8,7 @@ import {
   runNextCrawlSessionBatch,
   saveCrawlSession,
   stopCrawlSession,
+  toDashboardCrawlSession,
 } from "@/lib/crawl-sessions";
 import { getJsonStoreStatus } from "@/lib/json-store";
 import { trackerIdForWebsite } from "@/lib/site-id";
@@ -55,7 +56,7 @@ export async function GET(request: Request, context: { params: Promise<{ session
     });
 
     return NextResponse.json(
-      { session: failedSession, storage: getJsonStoreStatus() },
+      { session: toDashboardCrawlSession(failedSession), storage: getJsonStoreStatus() },
       { headers: { "cache-control": "no-store, max-age=0" } },
     );
   }
@@ -65,7 +66,7 @@ export async function GET(request: Request, context: { params: Promise<{ session
   }
 
   return NextResponse.json(
-    { session, storage: getJsonStoreStatus() },
+    { session: toDashboardCrawlSession(session), storage: getJsonStoreStatus() },
     { headers: { "cache-control": "no-store, max-age=0" } },
   );
 }
@@ -84,7 +85,7 @@ export async function POST(request: Request, context: { params: Promise<{ sessio
   triggerSessionWorker(sessionId, session);
 
   return NextResponse.json(
-    { session, storage: getJsonStoreStatus() },
+    { session: toDashboardCrawlSession(session), storage: getJsonStoreStatus() },
     { headers: { "cache-control": "no-store, max-age=0" } },
   );
 }
@@ -110,7 +111,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ sessi
   }
 
   return NextResponse.json(
-    { session, storage: getJsonStoreStatus() },
+    { session: toDashboardCrawlSession(session), storage: getJsonStoreStatus() },
     { headers: { "cache-control": "no-store, max-age=0" } },
   );
 }
