@@ -406,7 +406,7 @@ export default function Home() {
 
     try {
       const params = new URLSearchParams({
-        limit: "100",
+        limit: "25",
         targetUrl: trackerTargetUrl,
         trackerId,
       });

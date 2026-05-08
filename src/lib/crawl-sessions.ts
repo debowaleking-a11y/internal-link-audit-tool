@@ -75,18 +75,19 @@ export async function markStaleCrawlSession(session: CrawlSession) {
   const finishedAt = new Date().toISOString();
   const error = "Crawl session stopped updating. Start it again with a smaller batch size.";
 
-  return saveCrawlSession({
+  const staleSession = {
     ...session,
     status: "failed",
     finishedAt,
     error,
-    result: buildSessionResult({
-      ...session,
-      status: "failed",
-      finishedAt,
-      error,
-    }),
-  });
+    result: undefined,
+  } satisfies CrawlSession;
+
+  try {
+    return await saveCrawlSession(staleSession);
+  } catch {
+    return staleSession;
+  }
 }
 
 function makeSessionId() {

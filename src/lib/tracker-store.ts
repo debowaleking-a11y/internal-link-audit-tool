@@ -202,7 +202,7 @@ export function summarizeTrackerPayloads(payloads: Array<{ key: string; data: Tr
       clicks: payloads.filter((payload) => payload.data.clickedUrl).length,
     },
     pages,
-    links,
+    links: [],
   };
 }
 
