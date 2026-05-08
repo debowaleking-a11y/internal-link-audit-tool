@@ -3,6 +3,7 @@ import test from "node:test";
 import { getJsonStoreStatus } from "@/lib/json-store";
 
 const managedEnvKeys = [
+  "REDIS_URL",
   "KV_REST_API_URL",
   "KV_REST_API_TOKEN",
   "UPSTASH_REDIS_REST_URL",
@@ -55,3 +56,12 @@ test("getJsonStoreStatus reports persistent Redis when REST credentials are conf
   });
 });
 
+test("getJsonStoreStatus reports persistent Redis when Vercel Redis URL is configured", () => {
+  withStoreEnv({ REDIS_URL: "redis://default:secret@redis.example:6379" }, () => {
+    const status = getJsonStoreStatus();
+
+    assert.equal(status.provider, "redis");
+    assert.equal(status.persistent, true);
+    assert.equal(status.warning, null);
+  });
+});

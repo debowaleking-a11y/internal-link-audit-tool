@@ -1,5 +1,12 @@
 type StoredValue = unknown;
 
+type RedisUrlClient = {
+  set: (key: string, value: string) => Promise<unknown>;
+  get: (key: string) => Promise<string | null>;
+  del: (key: string) => Promise<number>;
+  scanIterator: (options: { MATCH: string; COUNT: number }) => AsyncIterable<string | Buffer>;
+};
+
 type JsonStore = {
   setJSON: (key: string, value: StoredValue) => Promise<void>;
   getJSON: <T>(key: string) => Promise<T | null>;
@@ -16,13 +23,35 @@ export type JsonStoreStatus = {
 
 const globalStore = globalThis as typeof globalThis & {
   __internalLinkAuditStores?: Map<string, Map<string, StoredValue>>;
+  __internalLinkAuditRedisClient?: Promise<RedisUrlClient>;
 };
 
 function hasRedisCredentials() {
   return Boolean(
-    (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN)
+    process.env.REDIS_URL
+      || (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN)
       || (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN),
   );
+}
+
+async function getRedisUrlClient() {
+  if (!process.env.REDIS_URL) {
+    return null;
+  }
+
+  globalStore.__internalLinkAuditRedisClient ??= (async () => {
+    const { createClient } = await import("redis");
+    const client = createClient({ url: process.env.REDIS_URL });
+
+    client.on("error", (error) => {
+      console.error("[LinkIntel] Redis client error", error);
+    });
+
+    await client.connect();
+    return client as RedisUrlClient;
+  })();
+
+  return globalStore.__internalLinkAuditRedisClient;
 }
 
 function memoryNamespace(name: string) {
@@ -56,7 +85,7 @@ function memoryStore(name: string): JsonStore {
   };
 }
 
-function redisStore(name: string): JsonStore | null {
+function restRedisStore(name: string): JsonStore | null {
   const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
@@ -106,6 +135,37 @@ function redisStore(name: string): JsonStore | null {
   };
 }
 
+async function redisUrlStore(name: string): Promise<JsonStore | null> {
+  const client = await getRedisUrlClient();
+
+  if (!client) {
+    return null;
+  }
+
+  const prefix = `ila:${name}:`;
+
+  return {
+    async setJSON(key, value) {
+      await client.set(`${prefix}${key}`, JSON.stringify(value));
+    },
+    async getJSON<T>(key: string) {
+      const value = await client.get(`${prefix}${key}`);
+      return value ? JSON.parse(value) as T : null;
+    },
+    async deleteJSON(key) {
+      const deleted = await client.del(`${prefix}${key}`);
+      return deleted > 0;
+    },
+    async listKeys() {
+      const keys: string[] = [];
+      for await (const key of client.scanIterator({ MATCH: `${prefix}*`, COUNT: 100 })) {
+        keys.push(String(key).slice(prefix.length));
+      }
+      return keys;
+    },
+  };
+}
+
 async function netlifyStore(name: string): Promise<JsonStore | null> {
   if (!process.env.NETLIFY) {
     return null;
@@ -133,7 +193,7 @@ async function netlifyStore(name: string): Promise<JsonStore | null> {
 }
 
 export async function getJsonStore(name: string): Promise<JsonStore> {
-  const redis = redisStore(name);
+  const redis = await redisUrlStore(name) ?? restRedisStore(name);
 
   if (redis) {
     return redis;
