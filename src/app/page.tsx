@@ -478,7 +478,7 @@ export default function Home() {
       if (!response.ok) {
         if (response.status === 404) {
           setBackgroundJob(null);
-          setBackgroundStatus("That old crawl job expired. Click Create project to create a fresh saved session.");
+          setBackgroundStatus("That old crawl session was from the previous host. Create a fresh Vercel project session.");
           return;
         }
         throw new Error(data.error ?? "Could not load background crawl.");
@@ -709,8 +709,8 @@ export default function Home() {
             ) : null}
           </div>
           {backgroundStatus ? <p className={styles.statusText}>{backgroundStatus}</p> : null}
-          {!backgroundJob && backgroundStatus.includes("old crawl job") ? (
-            <button className={styles.secondaryButton} onClick={createProjectSession} type="button">
+          {!backgroundJob && backgroundStatus.includes("old crawl session") ? (
+            <button className={`${styles.secondaryButton} ${styles.inlineAction}`} onClick={createProjectSession} type="button">
               Create fresh project
             </button>
           ) : null}
