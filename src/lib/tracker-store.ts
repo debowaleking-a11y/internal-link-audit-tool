@@ -1,4 +1,4 @@
-import { getDeployStore, getStore } from "@netlify/blobs";
+import { getJsonStore } from "./json-store";
 
 export type TrackedLink = {
   targetUrl: string;
@@ -63,16 +63,8 @@ function safeKeyPart(value: string) {
     .slice(0, 120) || "unknown";
 }
 
-function getTrackerStore() {
-  if (process.env.NETLIFY || process.env.CONTEXT) {
-    return getStore({ name: "link-tracker", consistency: "strong" });
-  }
-
-  return getDeployStore("link-tracker");
-}
-
 export async function saveTrackerPayload(payload: TrackerPayload) {
-  const store = getTrackerStore();
+  const store = await getJsonStore("link-tracker");
   const timestamp = Date.now();
   const random = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2);
   const key = `${safeKeyPart(payload.site)}/${timestamp}-${random}.json`;
@@ -82,10 +74,8 @@ export async function saveTrackerPayload(payload: TrackerPayload) {
 }
 
 export async function listTrackerPayloads(limit = 50) {
-  const store = getTrackerStore();
-  const { blobs } = await store.list();
-  const recent = blobs
-    .map((blob) => blob.key)
+  const store = await getJsonStore("link-tracker");
+  const recent = (await store.listKeys())
     .filter((key) => key.endsWith(".json"))
     .sort()
     .reverse()
@@ -93,7 +83,7 @@ export async function listTrackerPayloads(limit = 50) {
 
   const payloads = await Promise.all(
     recent.map(async (key) => {
-      const data = await store.get(key, { type: "json" });
+      const data = await store.getJSON<TrackerPayload>(key);
       return data ? { key, data: data as TrackerPayload } : null;
     }),
   );

@@ -1,6 +1,6 @@
-import { getDeployStore, getStore } from "@netlify/blobs";
 import { buildAuditResponse } from "./audit-response";
 import { crawlWebsite, discoverWebsiteUrls, type CrawledLink, type CrawledPage } from "./crawler";
+import { getJsonStore } from "./json-store";
 import { normalizeUrl } from "./url";
 
 export type CrawlSession = {
@@ -42,20 +42,6 @@ export type CrawlSession = {
   result?: ReturnType<typeof buildAuditResponse>;
 };
 
-const localSessions = new Map<string, CrawlSession>();
-
-function shouldUseLocalSessions() {
-  return !process.env.NETLIFY && !process.env.CONTEXT;
-}
-
-function getCrawlSessionStore() {
-  if (process.env.NETLIFY || process.env.CONTEXT) {
-    return getStore({ name: "crawl-sessions", consistency: "strong" });
-  }
-
-  return getDeployStore("crawl-sessions");
-}
-
 function makeSessionId() {
   return typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `session-${Date.now()}`;
 }
@@ -66,41 +52,25 @@ export async function saveCrawlSession(session: CrawlSession) {
     updatedAt: new Date().toISOString(),
   };
 
-  if (shouldUseLocalSessions()) {
-    localSessions.set(session.id, sessionToSave);
-    return sessionToSave;
-  }
-
-  const store = getCrawlSessionStore();
+  const store = await getJsonStore("crawl-sessions");
   await store.setJSON(`${session.id}.json`, sessionToSave);
   return sessionToSave;
 }
 
 export async function getCrawlSession(sessionId: string) {
-  if (shouldUseLocalSessions()) {
-    return localSessions.get(sessionId) ?? null;
-  }
-
-  const store = getCrawlSessionStore();
-  return store.get(`${sessionId}.json`, { type: "json" }) as Promise<CrawlSession | null>;
+  const store = await getJsonStore("crawl-sessions");
+  return store.getJSON<CrawlSession>(`${sessionId}.json`);
 }
 
 export async function listCrawlSessions(websiteUrl?: string) {
   const normalizedWebsiteUrl = websiteUrl ? normalizeUrl(websiteUrl) : "";
 
-  if (shouldUseLocalSessions()) {
-    return [...localSessions.values()]
-      .filter((session) => !normalizedWebsiteUrl || session.websiteUrl === normalizedWebsiteUrl)
-      .sort((first, second) => second.updatedAt.localeCompare(first.updatedAt));
-  }
-
-  const store = getCrawlSessionStore();
-  const { blobs } = await store.list();
+  const store = await getJsonStore("crawl-sessions");
+  const keys = await store.listKeys();
   const sessions = await Promise.all(
-    blobs
-      .map((blob) => blob.key)
+    keys
       .filter((key) => key.endsWith(".json"))
-      .map(async (key) => store.get(key, { type: "json" }) as Promise<CrawlSession | null>),
+      .map(async (key) => store.getJSON<CrawlSession>(key)),
   );
 
   return sessions

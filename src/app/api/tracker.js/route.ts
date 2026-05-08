@@ -1,16 +1,15 @@
 export const runtime = "nodejs";
 
-const canonicalTrackerOrigin = "https://internal-link-audit-tool.netlify.app";
-
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
+  const trackerOrigin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "") || requestUrl.origin;
   const trackerId = requestUrl.searchParams.get("id")?.trim().toUpperCase() || "ILA-DEMO";
   const script = `
 (function () {
   if (window.__internalLinkAuditInstalled) return;
   window.__internalLinkAuditInstalled = true;
 
-  var endpoint = ${JSON.stringify(`${canonicalTrackerOrigin}/api/track`)};
+  var endpoint = ${JSON.stringify(`${trackerOrigin}/api/track`)};
   var trackerId = ${JSON.stringify(trackerId)};
   var site = location.hostname;
   var maxScrollDepth = 0;

@@ -1,7 +1,9 @@
+import { after } from "next/server";
 import { NextResponse } from "next/server";
 import { createProjectCrawlSession, listCrawlSessions, runNextCrawlSessionBatch } from "@/lib/crawl-sessions";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 function parseSessionLimit(value: unknown) {
   const parsed = Number(value);
@@ -12,18 +14,10 @@ function parseSessionLimit(value: unknown) {
   return Math.max(1, Math.min(Math.floor(parsed), 5000));
 }
 
-async function triggerSessionWorker(origin: string, session: Awaited<ReturnType<typeof createProjectCrawlSession>>) {
-  if (process.env.NETLIFY || process.env.CONTEXT === "production") {
-    void fetch(`${origin}/.netlify/functions/crawl-session-background`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sessionId: session.id, session }),
-    }).catch(() => {});
-
-    return;
-  }
-
-  void runNextCrawlSessionBatch(session.id, session);
+function triggerSessionWorker(session: Awaited<ReturnType<typeof createProjectCrawlSession>>) {
+  after(async () => {
+    await runNextCrawlSessionBatch(session.id, session);
+  });
 }
 
 export async function POST(request: Request) {
@@ -36,7 +30,7 @@ export async function POST(request: Request) {
       projectName: typeof body.projectName === "string" ? body.projectName : undefined,
     });
 
-    await triggerSessionWorker(new URL(request.url).origin, session);
+    triggerSessionWorker(session);
 
     return NextResponse.json(
       { session },

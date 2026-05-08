@@ -192,21 +192,22 @@ type DashboardView =
 
 const defaultWebsite = "https://www.vidau.ai/";
 const defaultTarget = "https://www.vidau.ai/ai-video-generator/";
-const trackerScriptUrl = "https://internal-link-audit-tool.netlify.app/api/tracker.js";
+const configuredAppOrigin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "") ?? "";
 
-function trackerScriptWithId(trackerId: string) {
-  return `${trackerScriptUrl}?id=${encodeURIComponent(trackerId)}`;
+function trackerScriptWithId(trackerId: string, appOrigin: string) {
+  const baseUrl = appOrigin ? `${appOrigin}/api/tracker.js` : "/api/tracker.js";
+  return `${baseUrl}?id=${encodeURIComponent(trackerId)}`;
 }
 
-function headerSnippetFor(trackerId: string) {
-  return `<script async src="${trackerScriptWithId(trackerId)}"></script>`;
+function headerSnippetFor(trackerId: string, appOrigin: string) {
+  return `<script async src="${trackerScriptWithId(trackerId, appOrigin)}"></script>`;
 }
 
-function footerSnippetFor(trackerId: string) {
+function footerSnippetFor(trackerId: string, appOrigin: string) {
   return `<script>
   window.addEventListener("load", function () {
     var s = document.createElement("script");
-    s.src = "${trackerScriptWithId(trackerId)}";
+    s.src = "${trackerScriptWithId(trackerId, appOrigin)}";
     s.async = true;
     document.body.appendChild(s);
   });
@@ -276,6 +277,7 @@ export default function Home() {
   const [trackerTargetUrl, setTrackerTargetUrl] = useState(defaultTarget);
   const [mode, setMode] = useState<FilterMode>("target");
   const [activeView, setActiveView] = useState<DashboardView>("overview");
+  const [appOrigin] = useState(() => configuredAppOrigin || (typeof window !== "undefined" ? window.location.origin : ""));
   const [showSnippets, setShowSnippets] = useState(false);
   const [issueFilter, setIssueFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -292,12 +294,13 @@ export default function Home() {
   const [error, setError] = useState("");
   const siteHostname = hostnameFromUrl(websiteUrl);
   const trackerId = trackerIdForWebsite(websiteUrl);
-  const headerSnippet = headerSnippetFor(trackerId);
-  const footerSnippet = footerSnippetFor(trackerId);
+  const headerSnippet = headerSnippetFor(trackerId, appOrigin);
+  const footerSnippet = footerSnippetFor(trackerId, appOrigin);
   const isConnected = trackerConnection?.connected ?? false;
   const trackerLabel = !trackerChecked ? "Checking snippet..." : isConnected ? "Website deployed" : "Snippet not detected yet";
   const liveStatusLabel = !trackerChecked ? "Checking install" : isConnected ? "Website connected" : "Waiting for install";
   const currentProjectName = backgroundJob?.projectName ?? siteHostname ?? "No project created";
+  const appHostname = hostnameFromUrl(appOrigin) || "internal-link-audit-tool";
 
   const loadLatestCrawlSession = useCallback(async (options?: { silent?: boolean }) => {
     if (!siteHostname) {
@@ -475,7 +478,7 @@ export default function Home() {
       if (!response.ok) {
         if (response.status === 404) {
           setBackgroundJob(null);
-          setBackgroundStatus("That old crawl job expired. Click Start background crawl to create a fresh job.");
+          setBackgroundStatus("That old crawl job expired. Click Create project to create a fresh saved session.");
           return;
         }
         throw new Error(data.error ?? "Could not load background crawl.");
@@ -631,7 +634,7 @@ export default function Home() {
         <header className={styles.topbar}>
           <div>
             <p>Project</p>
-            <strong>internal-link-audit-tool.netlify.app</strong>
+            <strong>{appHostname}</strong>
           </div>
           <div className={styles.topActions}>
             {result ? <button onClick={() => downloadCsv(result.audit)} type="button">Export CSV</button> : null}

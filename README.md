@@ -56,33 +56,55 @@ Deploy steps:
 
 The included `netlify.toml` sets the same build command, publish directory, and Node version.
 
+## Deploy Free On Vercel
+
+This project can also run on Vercel, which is a better fit for the Next.js dashboard while Netlify credits are blocked.
+
+1. In Vercel, choose **Add New > Project**.
+2. Import `debowaleking-a11y/internal-link-audit-tool` from GitHub.
+3. Keep the detected framework as **Next.js**.
+4. Use the default build command: `npm run build`.
+5. Deploy.
+
+The app uses a portable JSON storage adapter:
+
+- On Vercel with no database env vars, it uses in-memory storage for quick experiments.
+- For persistent project sessions, add Vercel KV or Upstash Redis and set `KV_REST_API_URL` plus `KV_REST_API_TOKEN`, or `UPSTASH_REDIS_REST_URL` plus `UPSTASH_REDIS_REST_TOKEN`.
+- On Netlify, it can still use Netlify Blobs when Netlify is available.
+
+Optional production env var:
+
+```bash
+NEXT_PUBLIC_APP_URL=https://your-vercel-domain.vercel.app
+```
+
+If this is not set, the dashboard creates snippets using the current deployed origin.
+
 ## Usage
 
 1. Enter a website URL, such as `https://www.vidau.ai/`.
 2. Pick a crawl limit. Start small, then increase it after confirming the crawl pattern.
 3. Click **Run audit** for a quick full-site crawl.
-4. For larger crawls, click **Start background crawl**, then use **Refresh job** until the batched session completes.
+4. For larger crawls, click **Create project**, then use **Refresh job** until the batched session completes.
 5. Review extracted links, page issues, and anchor opportunities.
 6. Use **Export CSV** to download the current result rows.
 
 ## Background Crawls
 
-The app includes single-job background crawling plus batched crawl sessions. Batched sessions store crawl progress and merged results in Netlify Blobs, so the browser can start a large crawl, receive a quick response, and check progress later.
+The app includes single-job background crawling plus batched crawl sessions. Batched sessions store crawl progress and merged results through the portable JSON store, so the browser can start a large crawl, receive a quick response, and check progress later.
 
 - Quick audit API: capped at 200 pages for fast request/response use.
 - Legacy background crawl API: capped at 1,500 pages for single jobs.
 - Batched crawl session API: capped at 5,000 pages, processed in batches of up to 250 URLs.
-- Netlify Background Functions can run longer than regular functions, but they are still not a replacement for a dedicated queue/worker once crawls need tens of thousands of pages.
+- Vercel/Next `after()` lets the API return quickly while a batch continues after the response. It is still not a replacement for a dedicated queue/worker once crawls need tens of thousands of pages.
 
 Endpoints:
 
 ```text
 POST /api/crawl-jobs
 GET /api/crawl-jobs/:jobId
-POST /.netlify/functions/crawl-background
 POST /api/crawl-sessions
 GET /api/crawl-sessions/:sessionId
-POST /.netlify/functions/crawl-session-background
 ```
 
 Batched crawl sessions discover sitemap URLs first, crawl a safe batch, merge the batch into the session report, and continue with the next batch until the session finishes or fails. The dashboard shows total crawled pages, total discovered pages, current batch, and current URL.
@@ -96,7 +118,7 @@ The dashboard generates a unique `ILA-...` site ID from the website URL. Tap the
 Use the header version when your website lets you add custom code inside `<head>`:
 
 ```html
-<script async src="https://internal-link-audit-tool.netlify.app/api/tracker.js?id=ILA-YOURSITE-12345"></script>
+<script async src="https://your-vercel-domain.vercel.app/api/tracker.js?id=ILA-YOURSITE-12345"></script>
 ```
 
 Use the footer version when the header does not load reliably, or when your theme only supports code before the closing `</body>` tag:
@@ -105,7 +127,7 @@ Use the footer version when the header does not load reliably, or when your them
 <script>
   window.addEventListener("load", function () {
     var s = document.createElement("script");
-    s.src = "https://internal-link-audit-tool.netlify.app/api/tracker.js?id=ILA-YOURSITE-12345";
+    s.src = "https://your-vercel-domain.vercel.app/api/tracker.js?id=ILA-YOURSITE-12345";
     s.async = true;
     document.body.appendChild(s);
   });

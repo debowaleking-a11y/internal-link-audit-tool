@@ -33,7 +33,12 @@ function cleanUrl(value: unknown) {
 }
 
 function rateLimitKey(request: Request, site: string) {
-  const ip = request.headers.get("x-nf-client-connection-ip") ?? request.headers.get("x-forwarded-for") ?? "unknown";
+  const ip =
+    request.headers.get("x-vercel-forwarded-for") ??
+    request.headers.get("x-real-ip") ??
+    request.headers.get("x-nf-client-connection-ip") ??
+    request.headers.get("x-forwarded-for") ??
+    "unknown";
   return `${site}:${ip.split(",")[0].trim()}`;
 }
 

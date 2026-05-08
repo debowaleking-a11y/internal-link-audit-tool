@@ -1,25 +1,20 @@
+import { after } from "next/server";
 import { NextResponse } from "next/server";
 import { getCrawlSession, resumeCrawlSession, runNextCrawlSessionBatch, saveCrawlSession } from "@/lib/crawl-sessions";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const staleRunningMs = 4 * 60 * 1000;
 
-async function triggerSessionWorker(origin: string, sessionId: string, session: Awaited<ReturnType<typeof getCrawlSession>>) {
+function triggerSessionWorker(sessionId: string, session: Awaited<ReturnType<typeof getCrawlSession>>) {
   if (!session || session.status !== "queued") {
     return;
   }
 
-  if (process.env.NETLIFY || process.env.CONTEXT === "production") {
-    void fetch(`${origin}/.netlify/functions/crawl-session-background`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sessionId, session }),
-    }).catch(() => {});
-    return;
-  }
-
-  void runNextCrawlSessionBatch(sessionId, session);
+  after(async () => {
+    await runNextCrawlSessionBatch(sessionId, session);
+  });
 }
 
 export async function GET(request: Request, context: { params: Promise<{ sessionId: string }> }) {
@@ -46,7 +41,7 @@ export async function GET(request: Request, context: { params: Promise<{ session
   }
 
   if (session.status === "queued") {
-    await triggerSessionWorker(new URL(request.url).origin, sessionId, session);
+    triggerSessionWorker(sessionId, session);
   }
 
   return NextResponse.json({ session }, { headers: { "cache-control": "no-store, max-age=0" } });
@@ -63,7 +58,7 @@ export async function POST(request: Request, context: { params: Promise<{ sessio
     );
   }
 
-  await triggerSessionWorker(new URL(request.url).origin, sessionId, session);
+  triggerSessionWorker(sessionId, session);
 
   return NextResponse.json({ session }, { headers: { "cache-control": "no-store, max-age=0" } });
 }

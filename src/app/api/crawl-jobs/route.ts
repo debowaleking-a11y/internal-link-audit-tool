@@ -1,7 +1,9 @@
+import { after } from "next/server";
 import { NextResponse } from "next/server";
 import { createCrawlJob, runCrawlJob } from "@/lib/crawl-jobs";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 function parseBackgroundLimit(value: unknown) {
   const parsed = Number(value);
@@ -19,21 +21,9 @@ export async function POST(request: Request) {
       websiteUrl: String(body.websiteUrl ?? ""),
       crawlLimit: parseBackgroundLimit(body.crawlLimit),
     });
-    const origin = new URL(request.url).origin;
-
-    if (process.env.NETLIFY || process.env.CONTEXT === "production") {
-      const response = await fetch(`${origin}/.netlify/functions/crawl-background`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ jobId: job.id, job }),
-      });
-
-      if (!response.ok && response.status !== 202) {
-        throw new Error(`Could not start background function. Status ${response.status}.`);
-      }
-    } else {
-      void runCrawlJob(job.id);
-    }
+    after(async () => {
+      await runCrawlJob(job.id, job);
+    });
 
     return NextResponse.json({ job }, { status: 202, headers: { "cache-control": "no-store, max-age=0" } });
   } catch (error) {

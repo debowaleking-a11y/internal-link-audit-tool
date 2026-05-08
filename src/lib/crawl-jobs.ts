@@ -1,6 +1,6 @@
-import { getDeployStore, getStore } from "@netlify/blobs";
 import { buildAuditResponse } from "./audit-response";
 import { crawlWebsite } from "./crawler";
+import { getJsonStore } from "./json-store";
 import { normalizeUrl } from "./url";
 
 export type BackgroundCrawlJob = {
@@ -22,20 +22,6 @@ export type BackgroundCrawlJob = {
   result?: ReturnType<typeof buildAuditResponse>;
 };
 
-const localJobs = new Map<string, BackgroundCrawlJob>();
-
-function shouldUseLocalJobs() {
-  return !process.env.NETLIFY && !process.env.CONTEXT;
-}
-
-function getCrawlJobStore() {
-  if (process.env.NETLIFY || process.env.CONTEXT) {
-    return getStore({ name: "crawl-jobs", consistency: "strong" });
-  }
-
-  return getDeployStore("crawl-jobs");
-}
-
 export function makeJobId() {
   return typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `crawl-${Date.now()}`;
 }
@@ -46,23 +32,14 @@ export async function saveCrawlJob(job: BackgroundCrawlJob) {
     updatedAt: new Date().toISOString(),
   };
 
-  if (shouldUseLocalJobs()) {
-    localJobs.set(job.id, jobToSave);
-    return jobToSave;
-  }
-
-  const store = getCrawlJobStore();
+  const store = await getJsonStore("crawl-jobs");
   await store.setJSON(`${job.id}.json`, jobToSave);
   return jobToSave;
 }
 
 export async function getCrawlJob(jobId: string) {
-  if (shouldUseLocalJobs()) {
-    return localJobs.get(jobId) ?? null;
-  }
-
-  const store = getCrawlJobStore();
-  return store.get(`${jobId}.json`, { type: "json" }) as Promise<BackgroundCrawlJob | null>;
+  const store = await getJsonStore("crawl-jobs");
+  return store.getJSON<BackgroundCrawlJob>(`${jobId}.json`);
 }
 
 export async function createCrawlJob(input: { websiteUrl: string; crawlLimit: number }) {
