@@ -180,6 +180,13 @@ type CrawlSession = {
   result?: AuditResponse;
 };
 
+type StorageStatus = {
+  provider: "redis" | "netlify-blobs" | "memory";
+  persistent: boolean;
+  label: string;
+  warning: string | null;
+};
+
 type FilterMode = "target" | "all" | "broken" | "nofollow";
 type DashboardView =
   | "overview"
@@ -286,6 +293,7 @@ export default function Home() {
   const [trackerConnection, setTrackerConnection] = useState<TrackerConnection | null>(null);
   const [backgroundJob, setBackgroundJob] = useState<CrawlSession | null>(null);
   const [backgroundStatus, setBackgroundStatus] = useState("");
+  const [storageStatus, setStorageStatus] = useState<StorageStatus | null>(null);
   const [inboundTracker, setInboundTracker] = useState<InboundTrackerResult | null>(null);
   const [trackerStatus, setTrackerStatus] = useState("");
   const [trackerChecked, setTrackerChecked] = useState(false);
@@ -322,6 +330,8 @@ export default function Home() {
       if (!response.ok) {
         throw new Error(data.error ?? "Could not load latest crawl session.");
       }
+
+      setStorageStatus(data.storage ?? null);
 
       if (data.latestSession) {
         setBackgroundJob(data.latestSession);
@@ -456,8 +466,13 @@ export default function Home() {
         throw new Error(data.error ?? "Could not start background crawl.");
       }
 
+      setStorageStatus(data.storage ?? null);
       setBackgroundJob(data.session);
-      setBackgroundStatus("Project created. The crawl session is now saved and resumable.");
+      setBackgroundStatus(
+        data.storage?.persistent
+          ? "Project created. The crawl session is now saved and resumable."
+          : "Project created in temporary storage. Connect KV/Redis before relying on large resumable crawls.",
+      );
     } catch (jobError) {
       setBackgroundStatus(jobError instanceof Error ? jobError.message : "Could not create project session.");
     }
@@ -476,6 +491,7 @@ export default function Home() {
       const data = await response.json();
 
       if (!response.ok) {
+        setStorageStatus(data.storage ?? null);
         if (response.status === 404) {
           setBackgroundJob(null);
           setBackgroundStatus("That old crawl session was from the previous host. Create a fresh Vercel project session.");
@@ -484,6 +500,7 @@ export default function Home() {
         throw new Error(data.error ?? "Could not load background crawl.");
       }
 
+      setStorageStatus(data.storage ?? null);
       setBackgroundJob(data.session);
 
       if (data.session.result) {
@@ -523,6 +540,7 @@ export default function Home() {
         throw new Error(data.error ?? "Could not resume crawl session.");
       }
 
+      setStorageStatus(data.storage ?? null);
       setBackgroundJob(data.session);
       setBackgroundStatus("Crawl session resumed. Use refresh to check progress.");
     } catch (resumeError) {
@@ -550,6 +568,7 @@ export default function Home() {
         throw new Error(data.error ?? "Could not stop crawl session.");
       }
 
+      setStorageStatus(data.storage ?? null);
       setBackgroundJob(data.session);
       setBackgroundStatus("Crawl stopped. Saved data is still available, and you can resume it later.");
     } catch (stopError) {
@@ -752,6 +771,11 @@ export default function Home() {
             <div>
               <strong>Large crawl mode</strong>
               <span>Instant audits stay safest up to 200 pages. Background sessions can crawl up to 5,000 pages in batches.</span>
+              {storageStatus && !storageStatus.persistent ? (
+                <small className={styles.storageNotice}>
+                  {storageStatus.label}: {storageStatus.warning}
+                </small>
+              ) : null}
             </div>
             {backgroundJob ? (
               <div className={styles.jobMeta}>

@@ -405,6 +405,16 @@
   line-height: 1.45;
 }
 
+.storageNotice {
+  display: block;
+  max-width: 760px;
+  margin-top: 10px;
+  color: #ffd166;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .jobMeta {
   display: flex;
   align-items: center;

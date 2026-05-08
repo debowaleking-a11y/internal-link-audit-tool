@@ -111,6 +111,8 @@ Batched crawl sessions discover sitemap URLs first, crawl a safe batch, merge th
 
 Sessions are project-level records for the website URL. Use **Create project** to start a saved Semrush-style project session for the website. If a crawl fails or the browser is refreshed, use **Load project** to bring back the latest session for that website, then use **Resume crawl** to continue from the saved `nextIndex` instead of starting over.
 
+For Vercel production, connect persistent Redis/KV storage before relying on 5,000-page sessions. If `KV_REST_API_URL`/`KV_REST_API_TOKEN` or `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` are missing, the app falls back to temporary memory storage. That fallback is fine for local testing, but Vercel can move requests between serverless instances, so saved sessions may disappear.
+
 ## Live Tracking Snippets
 
 The dashboard generates a unique `ILA-...` site ID from the website URL. Tap the Tool ID on the Overview dashboard to reveal the snippets.

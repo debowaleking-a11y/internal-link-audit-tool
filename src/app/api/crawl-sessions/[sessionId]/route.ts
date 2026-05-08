@@ -8,6 +8,7 @@ import {
   saveCrawlSession,
   stopCrawlSession,
 } from "@/lib/crawl-sessions";
+import { getJsonStoreStatus } from "@/lib/json-store";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -30,7 +31,7 @@ export async function GET(request: Request, context: { params: Promise<{ session
 
   if (!session) {
     return NextResponse.json(
-      { error: "Crawl session not found. Start a fresh crawl session." },
+      { error: "Crawl session not found. Start a fresh crawl session.", storage: getJsonStoreStatus() },
       { status: 404, headers: { "cache-control": "no-store, max-age=0" } },
     );
   }
@@ -44,14 +45,20 @@ export async function GET(request: Request, context: { params: Promise<{ session
       error: "Crawl session stopped updating. Start it again with a smaller batch size.",
     });
 
-    return NextResponse.json({ session: failedSession }, { headers: { "cache-control": "no-store, max-age=0" } });
+    return NextResponse.json(
+      { session: failedSession, storage: getJsonStoreStatus() },
+      { headers: { "cache-control": "no-store, max-age=0" } },
+    );
   }
 
   if (session.status === "queued") {
     triggerSessionWorker(sessionId, session);
   }
 
-  return NextResponse.json({ session }, { headers: { "cache-control": "no-store, max-age=0" } });
+  return NextResponse.json(
+    { session, storage: getJsonStoreStatus() },
+    { headers: { "cache-control": "no-store, max-age=0" } },
+  );
 }
 
 export async function POST(request: Request, context: { params: Promise<{ sessionId: string }> }) {
@@ -60,14 +67,17 @@ export async function POST(request: Request, context: { params: Promise<{ sessio
 
   if (!session) {
     return NextResponse.json(
-      { error: "Crawl session not found. Start a fresh crawl session." },
+      { error: "Crawl session not found. Start a fresh crawl session.", storage: getJsonStoreStatus() },
       { status: 404, headers: { "cache-control": "no-store, max-age=0" } },
     );
   }
 
   triggerSessionWorker(sessionId, session);
 
-  return NextResponse.json({ session }, { headers: { "cache-control": "no-store, max-age=0" } });
+  return NextResponse.json(
+    { session, storage: getJsonStoreStatus() },
+    { headers: { "cache-control": "no-store, max-age=0" } },
+  );
 }
 
 export async function PATCH(request: Request, context: { params: Promise<{ sessionId: string }> }) {
@@ -85,12 +95,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ sessi
 
   if (!session) {
     return NextResponse.json(
-      { error: "Crawl session not found. Start a fresh crawl session." },
+      { error: "Crawl session not found. Start a fresh crawl session.", storage: getJsonStoreStatus() },
       { status: 404, headers: { "cache-control": "no-store, max-age=0" } },
     );
   }
 
-  return NextResponse.json({ session }, { headers: { "cache-control": "no-store, max-age=0" } });
+  return NextResponse.json(
+    { session, storage: getJsonStoreStatus() },
+    { headers: { "cache-control": "no-store, max-age=0" } },
+  );
 }
 
 export async function DELETE(_request: Request, context: { params: Promise<{ sessionId: string }> }) {
@@ -99,7 +112,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ ses
 
   if (!deleted) {
     return NextResponse.json(
-      { error: "Crawl session not found." },
+      { error: "Crawl session not found.", storage: getJsonStoreStatus() },
       { status: 404, headers: { "cache-control": "no-store, max-age=0" } },
     );
   }

@@ -7,9 +7,23 @@ type JsonStore = {
   listKeys: () => Promise<string[]>;
 };
 
+export type JsonStoreStatus = {
+  provider: "redis" | "netlify-blobs" | "memory";
+  persistent: boolean;
+  label: string;
+  warning: string | null;
+};
+
 const globalStore = globalThis as typeof globalThis & {
   __internalLinkAuditStores?: Map<string, Map<string, StoredValue>>;
 };
+
+function hasRedisCredentials() {
+  return Boolean(
+    (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN)
+      || (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN),
+  );
+}
 
 function memoryNamespace(name: string) {
   globalStore.__internalLinkAuditStores ??= new Map();
@@ -126,4 +140,31 @@ export async function getJsonStore(name: string): Promise<JsonStore> {
   }
 
   return (await netlifyStore(name)) ?? memoryStore(name);
+}
+
+export function getJsonStoreStatus(): JsonStoreStatus {
+  if (hasRedisCredentials()) {
+    return {
+      provider: "redis",
+      persistent: true,
+      label: "Persistent Redis storage",
+      warning: null,
+    };
+  }
+
+  if (process.env.NETLIFY) {
+    return {
+      provider: "netlify-blobs",
+      persistent: true,
+      label: "Persistent Netlify Blobs storage",
+      warning: null,
+    };
+  }
+
+  return {
+    provider: "memory",
+    persistent: false,
+    label: "Temporary memory storage",
+    warning: "Project sessions may disappear between Vercel requests until you connect Vercel KV or Upstash Redis.",
+  };
 }
