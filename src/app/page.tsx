@@ -276,6 +276,20 @@ function downloadRowsCsv(filename: string, header: string[], rows: Array<Array<s
   URL.revokeObjectURL(url);
 }
 
+async function readJsonResponse(response: Response) {
+  const responseText = await response.text();
+
+  if (!responseText.trim()) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(responseText);
+  } catch {
+    throw new Error(`Server returned an invalid response with status ${response.status}.`);
+  }
+}
+
 export default function Home() {
   const [websiteUrl, setWebsiteUrl] = useState(defaultWebsite);
   const [crawlLimit, setCrawlLimit] = useState(50);
@@ -325,7 +339,7 @@ export default function Home() {
         _: String(Date.now()),
       });
       const response = await fetch(`/api/crawl-sessions?${params.toString()}`, { cache: "no-store" });
-      const data = await response.json();
+      const data = await readJsonResponse(response);
 
       if (!response.ok) {
         throw new Error(data.error ?? "Could not load latest crawl session.");
@@ -363,8 +377,7 @@ export default function Home() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ websiteUrl, crawlLimit }),
       });
-      const responseText = await response.text();
-      const data = responseText ? JSON.parse(responseText) : {};
+      const data = await readJsonResponse(response);
 
       if (!response.ok) {
         throw new Error(data.error ?? `Audit failed with status ${response.status}.`);
@@ -404,7 +417,7 @@ export default function Home() {
       params.set("_", String(Date.now()));
 
       const response = await fetch(`/api/track/reports?${params.toString()}`, { cache: "no-store" });
-      const data = await response.json();
+      const data = await readJsonResponse(response);
 
       if (!response.ok) {
         throw new Error(data.error ?? "Could not load tracker reports.");
@@ -460,7 +473,7 @@ export default function Home() {
           projectName: siteHostname ? `${siteHostname} SEO Project` : undefined,
         }),
       });
-      const data = await response.json();
+      const data = await readJsonResponse(response);
 
       if (!response.ok) {
         throw new Error(data.error ?? "Could not start background crawl.");
@@ -488,7 +501,7 @@ export default function Home() {
 
     try {
       const response = await fetch(`/api/crawl-sessions/${backgroundJob.id}?_=${Date.now()}`, { cache: "no-store" });
-      const data = await response.json();
+      const data = await readJsonResponse(response);
 
       if (!response.ok) {
         setStorageStatus(data.storage ?? null);
@@ -534,7 +547,7 @@ export default function Home() {
         method: "POST",
         headers: { "content-type": "application/json" },
       });
-      const data = await response.json();
+      const data = await readJsonResponse(response);
 
       if (!response.ok) {
         throw new Error(data.error ?? "Could not resume crawl session.");
@@ -562,7 +575,7 @@ export default function Home() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ action: "stop" }),
       });
-      const data = await response.json();
+      const data = await readJsonResponse(response);
 
       if (!response.ok) {
         throw new Error(data.error ?? "Could not stop crawl session.");
@@ -593,7 +606,7 @@ export default function Home() {
       const response = await fetch(`/api/crawl-sessions/${backgroundJob.id}`, {
         method: "DELETE",
       });
-      const data = await response.json();
+      const data = await readJsonResponse(response);
 
       if (!response.ok) {
         throw new Error(data.error ?? "Could not delete crawl session.");
