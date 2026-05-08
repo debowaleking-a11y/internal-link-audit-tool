@@ -18,13 +18,19 @@ export async function GET(request: Request) {
   const targetUrl = url.searchParams.get("targetUrl") ?? "";
   const trackerId = url.searchParams.get("trackerId") ?? "";
   const site = url.searchParams.get("site") ?? "";
-  const allPayloads = await listTrackerPayloads(200);
+  const allPayloads = await listTrackerPayloads(limit);
   const payloads = filterTrackerPayloads(allPayloads, { trackerId, site }).slice(0, limit);
   const summary = summarizeTrackerPayloads(payloads);
 
   return NextResponse.json(
     {
-      reports: payloads,
+      reports: payloads.map(({ key, data }) => ({
+        key,
+        receivedAt: data.receivedAt,
+        pageUrl: data.pageUrl,
+        pageTitle: data.pageTitle,
+        eventType: data.eventType ?? null,
+      })),
       connection: {
         trackerId: trackerId || null,
         site: site || null,

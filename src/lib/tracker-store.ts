@@ -176,7 +176,16 @@ export function summarizeTrackerPayloads(payloads: Array<{ key: string; data: Tr
     }
   }
 
-  const pages = [...pageMap.values()].sort((first, second) => second.lastSeen.localeCompare(first.lastSeen));
+  const pages = [...pageMap.values()]
+    .sort((first, second) => second.lastSeen.localeCompare(first.lastSeen))
+    .map((page) => ({
+      site: page.site,
+      pageUrl: page.pageUrl,
+      pageTitle: page.pageTitle,
+      links: page.links,
+      reportCount: page.reportCount,
+      lastSeen: page.lastSeen,
+    }));
   const links = pages.flatMap((page) =>
     page.links.map((link) => ({
       pageUrl: page.pageUrl,

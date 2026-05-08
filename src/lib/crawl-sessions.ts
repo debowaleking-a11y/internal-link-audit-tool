@@ -42,6 +42,8 @@ export type CrawlSession = {
   result?: ReturnType<typeof buildAuditResponse>;
 };
 
+const staleRunningMs = 4 * 60 * 1000;
+
 export function toDashboardCrawlSession(session: CrawlSession) {
   return {
     id: session.id,
@@ -61,6 +63,30 @@ export function toDashboardCrawlSession(session: CrawlSession) {
     error: session.error,
     result: session.result,
   };
+}
+
+export async function markStaleCrawlSession(session: CrawlSession) {
+  const updatedAt = new Date(session.updatedAt || session.startedAt || session.createdAt).getTime();
+
+  if (session.status !== "running" || !Number.isFinite(updatedAt) || Date.now() - updatedAt <= staleRunningMs) {
+    return session;
+  }
+
+  const finishedAt = new Date().toISOString();
+  const error = "Crawl session stopped updating. Start it again with a smaller batch size.";
+
+  return saveCrawlSession({
+    ...session,
+    status: "failed",
+    finishedAt,
+    error,
+    result: buildSessionResult({
+      ...session,
+      status: "failed",
+      finishedAt,
+      error,
+    }),
+  });
 }
 
 function makeSessionId() {

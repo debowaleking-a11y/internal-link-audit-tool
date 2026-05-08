@@ -2,11 +2,10 @@ import { after } from "next/server";
 import { NextResponse } from "next/server";
 import {
   deleteCrawlSessionsForWebsite,
-  buildSessionResult,
   getCrawlSession,
+  markStaleCrawlSession,
   resumeCrawlSession,
   runNextCrawlSessionBatch,
-  saveCrawlSession,
   stopCrawlSession,
   toDashboardCrawlSession,
 } from "@/lib/crawl-sessions";
@@ -16,8 +15,6 @@ import { deleteTrackerPayloads } from "@/lib/tracker-store";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-const staleRunningMs = 4 * 60 * 1000;
 
 function triggerSessionWorker(sessionId: string, session: Awaited<ReturnType<typeof getCrawlSession>>) {
   if (!session || session.status !== "queued") {
@@ -40,33 +37,21 @@ export async function GET(request: Request, context: { params: Promise<{ session
     );
   }
 
-  const updatedAt = new Date(session.updatedAt || session.startedAt || session.createdAt).getTime();
-  if (session.status === "running" && Number.isFinite(updatedAt) && Date.now() - updatedAt > staleRunningMs) {
-    const failedSession = await saveCrawlSession({
-      ...session,
-      status: "failed",
-      finishedAt: new Date().toISOString(),
-      error: "Crawl session stopped updating. Start it again with a smaller batch size.",
-      result: buildSessionResult({
-        ...session,
-        status: "failed",
-        finishedAt: new Date().toISOString(),
-        error: "Crawl session stopped updating. Start it again with a smaller batch size.",
-      }),
-    });
+  const checkedSession = await markStaleCrawlSession(session);
+  if (checkedSession.status === "failed" && session.status === "running") {
 
     return NextResponse.json(
-      { session: toDashboardCrawlSession(failedSession), storage: getJsonStoreStatus() },
+      { session: toDashboardCrawlSession(checkedSession), storage: getJsonStoreStatus() },
       { headers: { "cache-control": "no-store, max-age=0" } },
     );
   }
 
-  if (session.status === "queued") {
-    triggerSessionWorker(sessionId, session);
+  if (checkedSession.status === "queued") {
+    triggerSessionWorker(sessionId, checkedSession);
   }
 
   return NextResponse.json(
-    { session: toDashboardCrawlSession(session), storage: getJsonStoreStatus() },
+    { session: toDashboardCrawlSession(checkedSession), storage: getJsonStoreStatus() },
     { headers: { "cache-control": "no-store, max-age=0" } },
   );
 }

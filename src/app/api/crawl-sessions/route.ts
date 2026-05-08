@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import {
   createProjectCrawlSession,
   listCrawlSessions,
+  markStaleCrawlSession,
   runNextCrawlSessionBatch,
   toDashboardCrawlSession,
 } from "@/lib/crawl-sessions";
@@ -55,11 +56,12 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const websiteUrl = url.searchParams.get("websiteUrl") ?? "";
     const sessions = await listCrawlSessions(websiteUrl || undefined);
+    const checkedSessions = await Promise.all(sessions.map(markStaleCrawlSession));
 
     return NextResponse.json(
       {
-        sessions: sessions.map(toDashboardCrawlSession),
-        latestSession: sessions[0] ? toDashboardCrawlSession(sessions[0]) : null,
+        sessions: checkedSessions.map(toDashboardCrawlSession),
+        latestSession: checkedSessions[0] ? toDashboardCrawlSession(checkedSessions[0]) : null,
         storage: getJsonStoreStatus(),
       },
       { headers: { "cache-control": "no-store, max-age=0" } },
