@@ -87,7 +87,7 @@ export async function listCrawlSessions(websiteUrl?: string) {
 export async function createProjectCrawlSession(input: { websiteUrl: string; crawlLimit: number; batchSize?: number; projectName?: string }) {
   const websiteUrl = normalizeUrl(input.websiteUrl);
   const crawlLimit = Math.max(1, Math.min(Math.floor(input.crawlLimit), 5000));
-  const batchSize = Math.max(25, Math.min(Math.floor(input.batchSize ?? 100), 250));
+  const batchSize = Math.max(10, Math.min(Math.floor(input.batchSize ?? 25), 100));
   const discovered = await discoverWebsiteUrls(websiteUrl, crawlLimit);
   const createdAt = new Date().toISOString();
   const session: CrawlSession = {
@@ -199,7 +199,7 @@ export async function stopCrawlSession(sessionId: string) {
   });
 }
 
-function buildSessionResult(session: CrawlSession) {
+export function buildSessionResult(session: CrawlSession) {
   const { robots, ...discovery } = session.discovery;
 
   return buildAuditResponse({
@@ -264,12 +264,13 @@ export async function runNextCrawlSessionBatch(sessionId: string, fallbackSessio
       targetUrl: runningSession.targetUrl,
       crawlLimit: batchUrls.length,
       maxCrawlLimit: batchUrls.length,
-      maxDurationMs: 90 * 1000,
+      maxDurationMs: 45 * 1000,
       seedUrls: batchUrls,
       enqueueDiscoveredLinks: false,
       async onProgress(progress) {
+        const latestSession = await getCrawlSession(sessionId);
         await saveCrawlSession({
-          ...runningSession,
+          ...(latestSession ?? runningSession),
           status: "running",
           progress: {
             crawledPages: baseCrawledCount + progress.crawledPages,
@@ -279,8 +280,26 @@ export async function runNextCrawlSessionBatch(sessionId: string, fallbackSessio
           },
         });
       },
+      async onPage(page) {
+        const latestSession = await getCrawlSession(sessionId) ?? runningSession;
+        const merged = mergeSessionResults(latestSession.pages, latestSession.links, [page], page.links);
+
+        await saveCrawlSession({
+          ...latestSession,
+          ...merged,
+          status: "running",
+          progress: {
+            ...latestSession.progress,
+            crawledPages: merged.pages.filter((savedPage) => savedPage.crawled).length,
+            totalPages: latestSession.discoveredUrls.length,
+            currentBatch: runningSession.progress.currentBatch,
+            currentUrl: page.url,
+          },
+        });
+      },
     });
-    const merged = mergeSessionResults(runningSession.pages, runningSession.links, result.pages, result.links);
+    const latestBeforeMerge = await getCrawlSession(sessionId) ?? runningSession;
+    const merged = mergeSessionResults(latestBeforeMerge.pages, latestBeforeMerge.links, result.pages, result.links);
     const latest = await getCrawlSession(sessionId);
 
     if (latest?.status === "failed" && latest.error === "Crawl stopped by user.") {
@@ -306,11 +325,17 @@ export async function runNextCrawlSessionBatch(sessionId: string, fallbackSessio
 
     return saveCrawlSession(nextSession);
   } catch (error) {
-    return saveCrawlSession({
-      ...runningSession,
+    const latestSession = await getCrawlSession(sessionId) ?? runningSession;
+    const failedSession = {
+      ...latestSession,
       status: "failed",
       finishedAt: new Date().toISOString(),
       error: error instanceof Error ? error.message : "Crawl session batch failed.",
+    } satisfies CrawlSession;
+
+    return saveCrawlSession({
+      ...failedSession,
+      result: buildSessionResult(failedSession),
     });
   }
 }

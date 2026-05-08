@@ -456,7 +456,7 @@ export default function Home() {
         body: JSON.stringify({
           websiteUrl,
           crawlLimit,
-          batchSize: 100,
+          batchSize: 25,
           projectName: siteHostname ? `${siteHostname} SEO Project` : undefined,
         }),
       });
@@ -770,7 +770,7 @@ export default function Home() {
           <div className={styles.jobPanel}>
             <div>
               <strong>Large crawl mode</strong>
-              <span>Instant audits stay safest up to 200 pages. Background sessions can crawl up to 5,000 pages in batches.</span>
+              <span>Instant audits stay safest up to 200 pages. Background sessions can crawl up to 5,000 pages in smaller resumable batches.</span>
               {storageStatus && !storageStatus.persistent ? (
                 <small className={styles.storageNotice}>
                   {storageStatus.label}: {storageStatus.warning}

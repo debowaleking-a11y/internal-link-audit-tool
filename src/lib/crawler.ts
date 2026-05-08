@@ -331,6 +331,7 @@ export async function crawlWebsite(input: {
   seedUrls?: string[];
   enqueueDiscoveredLinks?: boolean;
   onProgress?: (progress: { crawledPages: number; queuedPages: number; currentUrl: string }) => Promise<void> | void;
+  onPage?: (page: CrawledPage) => Promise<void> | void;
 }) {
   const websiteUrl = normalizeUrl(input.websiteUrl);
   const normalizedTarget = normalizeUrl(input.targetUrl, websiteUrl);
@@ -387,7 +388,7 @@ export async function crawlWebsite(input: {
       statusCache.set(currentUrl, result.statusCode);
 
       if (!result.html || !result.contentType.includes("text/html")) {
-        pages.set(currentUrl, {
+        const page = {
           url: currentUrl,
           title: "",
           metaDescription: "",
@@ -400,7 +401,9 @@ export async function crawlWebsite(input: {
           statusCode: result.statusCode,
           crawled: true,
           links: [],
-        });
+        };
+        pages.set(currentUrl, page);
+        await input.onPage?.(page);
         continue;
       }
 
@@ -463,7 +466,7 @@ export async function crawlWebsite(input: {
         }
       });
 
-      pages.set(currentUrl, {
+      const page = {
         url: currentUrl,
         title,
         metaDescription,
@@ -476,9 +479,11 @@ export async function crawlWebsite(input: {
         statusCode: result.statusCode,
         crawled: true,
         links,
-      });
+      };
+      pages.set(currentUrl, page);
+      await input.onPage?.(page);
     } catch (error) {
-      pages.set(currentUrl, {
+      const page = {
         url: currentUrl,
         title: "",
         metaDescription: "",
@@ -492,7 +497,9 @@ export async function crawlWebsite(input: {
         crawled: false,
         error: error instanceof Error ? error.message : "Unable to crawl page.",
         links: [],
-      });
+      };
+      pages.set(currentUrl, page);
+      await input.onPage?.(page);
     }
   }
 

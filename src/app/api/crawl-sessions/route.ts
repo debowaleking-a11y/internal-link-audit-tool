@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     const session = await createProjectCrawlSession({
       websiteUrl: String(body.websiteUrl ?? ""),
       crawlLimit: parseSessionLimit(body.crawlLimit),
-      batchSize: Number(body.batchSize ?? 100),
+      batchSize: Number(body.batchSize ?? 25),
       projectName: typeof body.projectName === "string" ? body.projectName : undefined,
     });
 

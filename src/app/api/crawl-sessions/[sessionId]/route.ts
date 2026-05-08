@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { NextResponse } from "next/server";
 import {
   deleteCrawlSession,
+  buildSessionResult,
   getCrawlSession,
   resumeCrawlSession,
   runNextCrawlSessionBatch,
@@ -43,6 +44,12 @@ export async function GET(request: Request, context: { params: Promise<{ session
       status: "failed",
       finishedAt: new Date().toISOString(),
       error: "Crawl session stopped updating. Start it again with a smaller batch size.",
+      result: buildSessionResult({
+        ...session,
+        status: "failed",
+        finishedAt: new Date().toISOString(),
+        error: "Crawl session stopped updating. Start it again with a smaller batch size.",
+      }),
     });
 
     return NextResponse.json(
