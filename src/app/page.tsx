@@ -197,6 +197,8 @@ type DashboardView =
   | "script-tracking"
   | "site-settings";
 
+type IconName = "home" | "rankings" | "traffic" | "link" | "code" | "content" | "report" | "alert" | "settings" | "calendar" | "download";
+
 const defaultWebsite = "https://www.vidau.ai/";
 const defaultTarget = "https://www.vidau.ai/ai-video-generator/";
 const configuredAppOrigin = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, "") ?? "";
@@ -676,6 +678,13 @@ export default function Home() {
   const trackerCounts = trackerSummary?.counts;
   const pageByUrl = useMemo(() => new Map((result?.summary.pages ?? []).map((page) => [page.url, page])), [result]);
   const lowEngagementPages = trackerSummary?.pages.filter((page) => page.reportCount <= 1).length ?? 0;
+  const topIssueRows = [
+    { label: "Missing title tags", value: crawlCounts?.missingTitles ?? 0 },
+    { label: "Meta descriptions missing", value: crawlCounts?.missingMetaDescriptions ?? 0 },
+    { label: "Pages without H1", value: crawlCounts?.missingH1 ?? 0 },
+    { label: "Broken internal links", value: crawlCounts?.brokenLinks ?? 0 },
+    { label: "Orphan pages", value: crawlCounts?.orphanPages ?? 0 },
+  ];
   const issueOptions = [
     ["", "All issues"],
     ["missing_title", "Missing title"],
@@ -689,24 +698,24 @@ export default function Home() {
     ["orphan_page", "Orphan page"],
     ["low_internal_links", "Low internal links"],
   ];
-  const navItems: Array<{ id: DashboardView; label: string }> = [
-    { id: "overview", label: "Overview" },
-    { id: "internal-links", label: "Internal Links" },
-    { id: "page-issues", label: "Page Issues" },
-    { id: "content-decay", label: "Content Decay" },
-    { id: "link-opportunities", label: "Link Opportunities" },
-    { id: "script-tracking", label: "Script Tracking" },
-    { id: "site-settings", label: "Site Settings" },
+  const navItems: Array<{ id: DashboardView; label: string; icon: IconName }> = [
+    { id: "overview", label: "Overview", icon: "home" },
+    { id: "internal-links", label: "Internal Links", icon: "link" },
+    { id: "page-issues", label: "Technical SEO", icon: "code" },
+    { id: "content-decay", label: "Traffic", icon: "traffic" },
+    { id: "link-opportunities", label: "Keywords", icon: "rankings" },
+    { id: "script-tracking", label: "Reports", icon: "report" },
+    { id: "site-settings", label: "Settings", icon: "settings" },
   ];
 
   return (
     <main className={styles.shell}>
       <aside className={styles.sidebar}>
         <div className={styles.brand}>
-          <span className={styles.brandMark}>IL</span>
+          <span className={styles.brandMark} aria-hidden="true"></span>
           <div>
-            <strong>LinkIntel</strong>
-            <small>Internal Link Audit</small>
+            <strong>SEO</strong>
+            <small>Analytics</small>
           </div>
         </div>
         <nav className={styles.nav}>
@@ -717,10 +726,18 @@ export default function Home() {
               onClick={() => setActiveView(item.id)}
               type="button"
             >
+              <Icon name={item.icon} />
               {item.label}
             </button>
           ))}
         </nav>
+        <div className={styles.websiteSwitch}>
+          <Icon name="home" />
+          <div>
+            <span>Website</span>
+            <strong>{siteHostname || "Add site"}</strong>
+          </div>
+        </div>
         <div className={styles.sideNote}>
           <span>Live status</span>
           <strong>{liveStatusLabel}</strong>
@@ -730,12 +747,13 @@ export default function Home() {
       <section className={styles.content}>
         <header className={styles.topbar}>
           <div>
-            <p>Project</p>
-            <strong>{appHostname}</strong>
+            <h2>{navItems.find((item) => item.id === activeView)?.label ?? "Overview"}</h2>
+            <p>{activeView === "overview" ? "Your internal SEO performance overview" : appHostname}</p>
           </div>
           <div className={styles.topActions}>
+            <button className={styles.dateButton} type="button"><Icon name="calendar" /> May 8 – Jun 8, 2026</button>
             {result ? <button onClick={() => downloadCsv(result.audit)} type="button">Export CSV</button> : null}
-            <button onClick={createProjectSession} type="button">Create project</button>
+            <button onClick={createProjectSession} type="button">Create Project</button>
             <button onClick={() => loadTrackerReports()} type="button">Refresh reports</button>
           </div>
         </header>
@@ -769,9 +787,9 @@ export default function Home() {
                 onChange={(event) => setCrawlLimit(Number(event.target.value))}
               />
             </label>
-            <button disabled={isLoading} type="submit">{isLoading ? "Auditing..." : "Run audit"}</button>
+            <button disabled={isLoading} type="submit">{isLoading ? "Auditing..." : "Run Audit"}</button>
             <button className={styles.secondaryButton} onClick={() => loadLatestCrawlSession()} type="button">Load project</button>
-            <button className={styles.secondaryButton} onClick={createProjectSession} type="button">Create project</button>
+            <button className={styles.secondaryButton} onClick={createProjectSession} type="button">Create Project</button>
           </form>
           <div className={styles.projectStrip}>
             <div>
@@ -833,15 +851,79 @@ export default function Home() {
           {copiedSnippet ? <span className={styles.copyStatus}>{copiedSnippet}</span> : null}
         </section>
 
-        <section className={styles.metricsGrid}>
-          <Metric title="Total crawled pages" value={crawlCounts?.crawledPages ?? 0} color="blue" />
-          <Metric title="Total internal links" value={crawlCounts?.links ?? 0} color="purple" />
-          <Metric title="Broken internal links" value={crawlCounts?.brokenLinks ?? 0} color="red" />
-          <Metric title="Orphan pages" value={crawlCounts?.orphanPages ?? 0} color="amber" />
-          <Metric title="Missing titles" value={crawlCounts?.missingTitles ?? 0} color="red" />
-          <Metric title="Missing meta descriptions" value={crawlCounts?.missingMetaDescriptions ?? 0} color="amber" />
-          <Metric title="Pages with no H1" value={crawlCounts?.missingH1 ?? 0} color="purple" />
-          <Metric title="SEO health score" value={crawlCounts?.seoHealthScore ?? 0} color="blue" />
+        <section className={styles.overviewGrid}>
+          <div className={styles.mainReports}>
+            <section className={styles.metricsGrid}>
+              <Metric title="Crawled Pages" value={crawlCounts?.crawledPages ?? 0} color="blue" icon="rankings" onClick={() => setActiveView("page-issues")} />
+              <Metric title="Internal Links" value={crawlCounts?.links ?? 0} color="purple" icon="link" onClick={() => setActiveView("internal-links")} />
+              <Metric title="Broken Links" value={crawlCounts?.brokenLinks ?? 0} color="teal" icon="alert" onClick={() => setActiveView("page-issues")} />
+              <Metric title="Tracked Pages" value={trackerCounts?.pages ?? 0} color="green" icon="traffic" onClick={() => setActiveView("script-tracking")} />
+            </section>
+            <section className={`${styles.panel} ${styles.chartPanel}`} role="button" tabIndex={0} onClick={() => setActiveView("content-decay")} onKeyDown={(event) => event.key === "Enter" && setActiveView("content-decay")}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <h2>Internal Link Growth Over Time</h2>
+                  <p>Recent crawl and script activity signal how much of the site is being discovered.</p>
+                </div>
+                <button type="button">Daily</button>
+              </div>
+              <div className={styles.lineChart} aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span><span></span>
+              </div>
+            </section>
+            <section className={styles.lowerGrid}>
+              <ReportCard title="Top Landing Pages" action="View full report" onClick={() => setActiveView("script-tracking")}>
+                {(trackerSummary?.pages ?? []).slice(0, 5).map((page) => (
+                  <div key={page.pageUrl} className={styles.listRow}>
+                    <span>{page.pageTitle || page.pageUrl}</span>
+                    <strong>{page.reportCount}</strong>
+                  </div>
+                ))}
+                {!trackerSummary?.pages.length ? <p className={styles.empty}>No tracked landing pages yet.</p> : null}
+              </ReportCard>
+              <ReportCard title="Link Opportunities" action="View full report" onClick={() => setActiveView("link-opportunities")}>
+                {(result?.summary.suggestions ?? []).slice(0, 4).map((suggestion) => (
+                  <div key={suggestion.url} className={styles.listRow}>
+                    <span>{suggestion.title || suggestion.url}</span>
+                    <strong>{suggestion.suggestedAnchor}</strong>
+                  </div>
+                ))}
+                {!result?.summary.suggestions.length ? <p className={styles.empty}>Run an audit to generate opportunities.</p> : null}
+              </ReportCard>
+            </section>
+          </div>
+          <aside className={styles.insightRail}>
+            <button className={styles.healthCard} onClick={() => setActiveView("page-issues")} type="button">
+              <div>
+                <h3>Site Health</h3>
+                <small>{crawlCounts?.seoHealthScore ? "Based on latest crawl" : "Run a crawl to score the site"}</small>
+              </div>
+              <div className={styles.healthScore}>
+                <strong>{crawlCounts?.seoHealthScore ?? 0}</strong>
+                <span>{(crawlCounts?.seoHealthScore ?? 0) >= 80 ? "Excellent" : "Needs data"}</span>
+              </div>
+              <div className={styles.healthStats}>
+                <span>Crawled Pages <strong>{crawlCounts?.crawledPages ?? 0}</strong></span>
+                <span>Healthy Pages <strong>{Math.max(0, (crawlCounts?.crawledPages ?? 0) - topIssueRows.reduce((total, item) => total + item.value, 0))}</strong></span>
+                <span>Issues Found <strong>{topIssueRows.reduce((total, item) => total + item.value, 0)}</strong></span>
+              </div>
+            </button>
+            <ReportCard title="Top Issues" action="View all issues" onClick={() => setActiveView("page-issues")}>
+              {topIssueRows.map((issue) => (
+                <div key={issue.label} className={styles.issueRow}>
+                  <span>{issue.label}</span>
+                  <strong>{issue.value}</strong>
+                </div>
+              ))}
+            </ReportCard>
+            <ReportCard title="AI Insights" action="View full insight" onClick={() => setActiveView("link-opportunities")}>
+              <p className={styles.insightText}>Your strongest next move is to add links from high-visibility pages to priority target URLs.</p>
+              <div className={styles.checkList}>
+                <span>Improve anchor coverage</span>
+                <span>Review orphan pages</span>
+              </div>
+            </ReportCard>
+          </aside>
         </section>
           </>
         ) : null}
@@ -1117,12 +1199,89 @@ export default function Home() {
   );
 }
 
-function Metric({ title, value, color }: { title: string; value: number; color: "blue" | "purple" | "amber" | "red" }) {
-  return (
-    <article className={`${styles.metric} ${styles[color]}`}>
-      <span>{title}</span>
+function Metric({
+  title,
+  value,
+  color,
+  icon,
+  onClick,
+}: {
+  title: string;
+  value: number;
+  color: "blue" | "purple" | "amber" | "red" | "green" | "teal";
+  icon?: IconName;
+  onClick?: () => void;
+}) {
+  const content = (
+    <>
+      <span className={styles.metricIcon}><Icon name={icon ?? "report"} /></span>
+      <span className={styles.metricTitle}>{title}</span>
       <strong>{value.toLocaleString()}</strong>
-    </article>
+      <Sparkline />
+    </>
+  );
+
+  if (!onClick) {
+    return <article className={`${styles.metric} ${styles[color]}`}>{content}</article>;
+  }
+
+  return (
+    <button className={`${styles.metric} ${styles[color]}`} onClick={onClick} type="button">
+      {content}
+    </button>
+  );
+}
+
+function ReportCard({
+  title,
+  action,
+  children,
+  onClick,
+}: {
+  title: string;
+  action: string;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button className={styles.reportCard} onClick={onClick} type="button">
+      <div className={styles.reportHeader}>
+        <h3>{title}</h3>
+        <span>i</span>
+      </div>
+      <div className={styles.reportBody}>{children}</div>
+      <strong className={styles.reportAction}>{action} <span>→</span></strong>
+    </button>
+  );
+}
+
+function Sparkline() {
+  return (
+    <svg className={styles.sparkline} viewBox="0 0 180 54" aria-hidden="true">
+      <path d="M3 41 C18 28, 27 30, 38 22 S58 37, 72 26 S96 13, 108 25 S129 33, 140 18 S160 16, 177 7" />
+    </svg>
+  );
+}
+
+function Icon({ name }: { name: IconName }) {
+  const paths: Record<IconName, ReactNode> = {
+    home: <path d="M4 10.5 12 4l8 6.5V20h-5v-6H9v6H4z" />,
+    rankings: <path d="M5 19V9m7 10V5m7 14v-7M3 20h18" />,
+    traffic: <path d="m4 16 5-5 4 4 7-8m0 0v5m0-5h-5" />,
+    link: <path d="M9.5 14.5 14.5 9.5m-1-4 1.2-1.2a4 4 0 1 1 5.7 5.7l-2 2a4 4 0 0 1-5.7 0m-2.4 6.4-1.2 1.2a4 4 0 1 1-5.7-5.7l2-2a4 4 0 0 1 5.7 0" />,
+    code: <path d="m8 8-4 4 4 4m8-8 4 4-4 4m-2-10-4 12" />,
+    content: <path d="M6 3h9l3 3v15H6zM9 12h6M9 16h6M9 8h3" />,
+    report: <path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5" />,
+    alert: <path d="M12 3 2 20h20zM12 9v4m0 4h.01" />,
+    settings: <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm0-5v3m0 12v3m9-9h-3M6 12H3m15.4-6.4-2.1 2.1M7.7 16.3l-2.1 2.1m12.8 0-2.1-2.1M7.7 7.7 5.6 5.6" />,
+    calendar: <path d="M7 3v4m10-4v4M4 9h16M5 5h14v16H5z" />,
+    download: <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14" />,
+  };
+
+  return (
+    <svg className={styles.icon} viewBox="0 0 24 24" aria-hidden="true">
+      {paths[name]}
+    </svg>
   );
 }
 
