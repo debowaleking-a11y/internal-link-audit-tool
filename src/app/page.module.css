@@ -180,11 +180,21 @@
   padding: 0 14px;
 }
 
+.jobMeta .dangerButton {
+  border: 1px solid rgba(255, 139, 116, 0.32);
+  background: rgba(255, 139, 116, 0.12);
+  color: #ffb4a6;
+}
+
 .topActions button:hover,
 .jobMeta button:hover,
 .panelHeader button:hover,
 .snippetCard button:hover {
   background: rgba(255, 255, 255, 0.14);
+}
+
+.jobMeta .dangerButton:hover {
+  background: rgba(255, 139, 116, 0.2);
 }
 
 .heroPanel,

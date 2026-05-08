@@ -530,6 +530,64 @@ export default function Home() {
     }
   }
 
+  async function stopBackgroundCrawl() {
+    if (!backgroundJob) {
+      setBackgroundStatus("Load or create a project session first.");
+      return;
+    }
+
+    setBackgroundStatus("Stopping crawl session...");
+
+    try {
+      const response = await fetch(`/api/crawl-sessions/${backgroundJob.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "stop" }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not stop crawl session.");
+      }
+
+      setBackgroundJob(data.session);
+      setBackgroundStatus("Crawl stopped. Saved data is still available, and you can resume it later.");
+    } catch (stopError) {
+      setBackgroundStatus(stopError instanceof Error ? stopError.message : "Could not stop crawl session.");
+    }
+  }
+
+  async function deleteBackgroundCrawl() {
+    if (!backgroundJob) {
+      setBackgroundStatus("Load or create a project session first.");
+      return;
+    }
+
+    const shouldDelete = window.confirm("Delete this project crawl session? This clears the saved crawl progress for this project.");
+    if (!shouldDelete) {
+      return;
+    }
+
+    setBackgroundStatus("Deleting crawl session...");
+
+    try {
+      const response = await fetch(`/api/crawl-sessions/${backgroundJob.id}`, {
+        method: "DELETE",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not delete crawl session.");
+      }
+
+      setBackgroundJob(null);
+      setResult(null);
+      setBackgroundStatus("Project crawl session deleted. Create a new project to start fresh.");
+    } catch (deleteError) {
+      setBackgroundStatus(deleteError instanceof Error ? deleteError.message : "Could not delete crawl session.");
+    }
+  }
+
   const filteredLinks = useMemo(() => {
     const links = result?.audit.links ?? [];
     const normalizedTargetFilter = targetFilter.trim().toLowerCase();
@@ -704,6 +762,10 @@ export default function Home() {
                 {backgroundJob.status === "failed" || backgroundJob.status === "queued" ? (
                   <button onClick={resumeBackgroundCrawl} type="button">Resume crawl</button>
                 ) : null}
+                {backgroundJob.status === "running" || backgroundJob.status === "queued" ? (
+                  <button onClick={stopBackgroundCrawl} type="button">Stop run</button>
+                ) : null}
+                <button className={styles.dangerButton} onClick={deleteBackgroundCrawl} type="button">Delete</button>
                 <button onClick={refreshBackgroundCrawl} type="button">Refresh job</button>
               </div>
             ) : null}

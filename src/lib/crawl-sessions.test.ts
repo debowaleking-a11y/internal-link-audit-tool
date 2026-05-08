@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createProjectCrawlSession,
+  deleteCrawlSession,
   listCrawlSessions,
   mergeSessionResults,
   resumeCrawlSession,
   saveCrawlSession,
+  stopCrawlSession,
   type CrawlSession,
 } from "@/lib/crawl-sessions";
 import type { CrawledLink, CrawledPage } from "@/lib/crawler";
@@ -119,6 +121,62 @@ test("resumeCrawlSession keeps saved progress and makes a failed session runnabl
   assert.equal(resumed?.pages.length, 2);
   assert.equal(resumed?.links.length, 1);
   assert.equal(resumed?.error, null);
+});
+
+test("stopCrawlSession stops a runnable session without losing saved crawl data", async () => {
+  const runningSession: CrawlSession = {
+    id: "stop-test",
+    websiteUrl: "https://stop.example/",
+    targetUrl: "https://stop.example/",
+    crawlLimit: 100,
+    batchSize: 50,
+    status: "running",
+    createdAt: "2026-05-08T00:00:00.000Z",
+    updatedAt: "2026-05-08T00:01:00.000Z",
+    startedAt: "2026-05-08T00:01:00.000Z",
+    finishedAt: null,
+    discoveredUrls: ["https://stop.example/", "https://stop.example/a"],
+    nextIndex: 1,
+    progress: { crawledPages: 1, totalPages: 2, currentBatch: 1, currentUrl: "https://stop.example/a" },
+    discovery: { sitemapUrls: 2, sitemapsRead: 1, crawledFromSitemap: 1 },
+    pages: [page("https://stop.example/", true)],
+    links: [link("https://stop.example/", "https://stop.example/a", 1)],
+    error: null,
+  };
+
+  await saveCrawlSession(runningSession);
+  const stopped = await stopCrawlSession("stop-test");
+
+  assert.equal(stopped?.status, "failed");
+  assert.equal(stopped?.error, "Crawl stopped by user.");
+  assert.equal(stopped?.progress.currentUrl, "");
+  assert.equal(stopped?.pages.length, 1);
+  assert.equal(stopped?.links.length, 1);
+});
+
+test("deleteCrawlSession removes the saved project session", async () => {
+  await saveCrawlSession({
+    id: "delete-test",
+    websiteUrl: "https://delete.example/",
+    targetUrl: "https://delete.example/",
+    crawlLimit: 100,
+    batchSize: 50,
+    status: "queued",
+    createdAt: "2026-05-08T00:00:00.000Z",
+    updatedAt: "2026-05-08T00:00:00.000Z",
+    startedAt: null,
+    finishedAt: null,
+    discoveredUrls: ["https://delete.example/"],
+    nextIndex: 0,
+    progress: { crawledPages: 0, totalPages: 1, currentBatch: 0, currentUrl: "" },
+    discovery: { sitemapUrls: 1, sitemapsRead: 1, crawledFromSitemap: 0 },
+    pages: [],
+    links: [],
+    error: null,
+  });
+
+  assert.equal(await deleteCrawlSession("delete-test"), true);
+  assert.equal((await listCrawlSessions("https://delete.example/")).some((session) => session.id === "delete-test"), false);
 });
 
 test("listCrawlSessions returns the latest saved project session for a website", async () => {

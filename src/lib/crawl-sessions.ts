@@ -62,6 +62,11 @@ export async function getCrawlSession(sessionId: string) {
   return store.getJSON<CrawlSession>(`${sessionId}.json`);
 }
 
+export async function deleteCrawlSession(sessionId: string) {
+  const store = await getJsonStore("crawl-sessions");
+  return store.deleteJSON(`${sessionId}.json`);
+}
+
 export async function listCrawlSessions(websiteUrl?: string) {
   const normalizedWebsiteUrl = websiteUrl ? normalizeUrl(websiteUrl) : "";
 
@@ -170,6 +175,30 @@ export async function resumeCrawlSession(sessionId: string) {
   });
 }
 
+export async function stopCrawlSession(sessionId: string) {
+  const session = await getCrawlSession(sessionId);
+
+  if (!session) {
+    return null;
+  }
+
+  if (session.status === "completed" || session.status === "failed") {
+    return session;
+  }
+
+  return saveCrawlSession({
+    ...session,
+    status: "failed",
+    finishedAt: new Date().toISOString(),
+    error: "Crawl stopped by user.",
+    progress: {
+      ...session.progress,
+      crawledPages: session.pages.filter((page) => page.crawled).length,
+      currentUrl: "",
+    },
+  });
+}
+
 function buildSessionResult(session: CrawlSession) {
   const { robots, ...discovery } = session.discovery;
 
@@ -252,6 +281,12 @@ export async function runNextCrawlSessionBatch(sessionId: string, fallbackSessio
       },
     });
     const merged = mergeSessionResults(runningSession.pages, runningSession.links, result.pages, result.links);
+    const latest = await getCrawlSession(sessionId);
+
+    if (latest?.status === "failed" && latest.error === "Crawl stopped by user.") {
+      return latest;
+    }
+
     const nextIndex = Math.min(runningSession.discoveredUrls.length, runningSession.nextIndex + batchUrls.length);
     const isComplete = nextIndex >= runningSession.discoveredUrls.length;
     const nextSession: CrawlSession = {

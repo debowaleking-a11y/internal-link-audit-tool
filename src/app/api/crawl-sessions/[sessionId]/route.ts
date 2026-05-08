@@ -1,6 +1,13 @@
 import { after } from "next/server";
 import { NextResponse } from "next/server";
-import { getCrawlSession, resumeCrawlSession, runNextCrawlSessionBatch, saveCrawlSession } from "@/lib/crawl-sessions";
+import {
+  deleteCrawlSession,
+  getCrawlSession,
+  resumeCrawlSession,
+  runNextCrawlSessionBatch,
+  saveCrawlSession,
+  stopCrawlSession,
+} from "@/lib/crawl-sessions";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -61,4 +68,41 @@ export async function POST(request: Request, context: { params: Promise<{ sessio
   triggerSessionWorker(sessionId, session);
 
   return NextResponse.json({ session }, { headers: { "cache-control": "no-store, max-age=0" } });
+}
+
+export async function PATCH(request: Request, context: { params: Promise<{ sessionId: string }> }) {
+  const { sessionId } = await context.params;
+  const body = await request.json().catch(() => ({}));
+
+  if (body.action !== "stop") {
+    return NextResponse.json(
+      { error: "Unsupported crawl session action." },
+      { status: 400, headers: { "cache-control": "no-store, max-age=0" } },
+    );
+  }
+
+  const session = await stopCrawlSession(sessionId);
+
+  if (!session) {
+    return NextResponse.json(
+      { error: "Crawl session not found. Start a fresh crawl session." },
+      { status: 404, headers: { "cache-control": "no-store, max-age=0" } },
+    );
+  }
+
+  return NextResponse.json({ session }, { headers: { "cache-control": "no-store, max-age=0" } });
+}
+
+export async function DELETE(_request: Request, context: { params: Promise<{ sessionId: string }> }) {
+  const { sessionId } = await context.params;
+  const deleted = await deleteCrawlSession(sessionId);
+
+  if (!deleted) {
+    return NextResponse.json(
+      { error: "Crawl session not found." },
+      { status: 404, headers: { "cache-control": "no-store, max-age=0" } },
+    );
+  }
+
+  return NextResponse.json({ deleted: true }, { headers: { "cache-control": "no-store, max-age=0" } });
 }

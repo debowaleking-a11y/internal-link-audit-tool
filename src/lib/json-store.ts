@@ -3,6 +3,7 @@ type StoredValue = unknown;
 type JsonStore = {
   setJSON: (key: string, value: StoredValue) => Promise<void>;
   getJSON: <T>(key: string) => Promise<T | null>;
+  deleteJSON: (key: string) => Promise<boolean>;
   listKeys: () => Promise<string[]>;
 };
 
@@ -31,6 +32,9 @@ function memoryStore(name: string): JsonStore {
     },
     async getJSON<T>(key: string) {
       return (namespace.get(key) as T | undefined) ?? null;
+    },
+    async deleteJSON(key) {
+      return namespace.delete(key);
     },
     async listKeys() {
       return [...namespace.keys()];
@@ -77,6 +81,10 @@ function redisStore(name: string): JsonStore | null {
       const value = await command<string | null>(["GET", `${prefix}${key}`]);
       return value ? JSON.parse(value) : null;
     },
+    async deleteJSON(key) {
+      const deleted = await command<number>(["DEL", `${prefix}${key}`]);
+      return deleted > 0;
+    },
     async listKeys() {
       const keys = await command<string[]>(["KEYS", `${prefix}*`]);
       return keys.map((key) => key.slice(prefix.length));
@@ -98,6 +106,10 @@ async function netlifyStore(name: string): Promise<JsonStore | null> {
     },
     async getJSON<T>(key: string) {
       return store.get(key, { type: "json" }) as Promise<T | null>;
+    },
+    async deleteJSON(key) {
+      await store.delete(key);
+      return true;
     },
     async listKeys() {
       const { blobs } = await store.list();
