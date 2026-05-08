@@ -401,14 +401,21 @@ export default function Home() {
   }
 
   const loadTrackerReports = useCallback(async (options?: { silent?: boolean }) => {
-    setTrackerChecked(false);
+    const keepCurrentConnection = options?.silent && trackerConnection?.connected;
+    if (!keepCurrentConnection) {
+      setTrackerChecked(false);
+    }
+
     if (!options?.silent) {
       setTrackerStatus("Loading live reports...");
     }
 
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 12000);
+
     try {
       const params = new URLSearchParams({
-        limit: "25",
+        limit: activeView === "overview" ? "5" : "25",
         targetUrl: trackerTargetUrl,
         trackerId,
       });
@@ -418,7 +425,10 @@ export default function Home() {
       }
       params.set("_", String(Date.now()));
 
-      const response = await fetch(`/api/track/reports?${params.toString()}`, { cache: "no-store" });
+      const response = await fetch(`/api/track/reports?${params.toString()}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      });
       const data = await readJsonResponse(response);
 
       if (!response.ok) {
@@ -426,23 +436,52 @@ export default function Home() {
       }
 
       setTrackerSummary(data.summary);
-      setTrackerConnection(data.connection);
+      const connected = Boolean(data.connection?.connected || data.summary?.counts?.reports || data.reports?.length);
+      const nextConnection = {
+        ...(data.connection ?? {}),
+        trackerId,
+        site: siteHostname,
+        connected,
+        lastSeen: data.connection?.lastSeen ?? data.summary?.pages?.[0]?.lastSeen ?? null,
+        pagesSeen: data.connection?.pagesSeen ?? data.summary?.counts?.pages ?? 0,
+        reportsSeen: data.connection?.reportsSeen ?? data.summary?.counts?.reports ?? data.reports?.length ?? 0,
+      };
+      setTrackerConnection(nextConnection);
       setInboundTracker(data.inbound);
       setTrackerChecked(true);
       if (!options?.silent) {
         setTrackerStatus(
-          data.connection?.connected
-            ? `Connected. Last signal: ${new Date(data.connection.lastSeen).toLocaleString()}.`
+          nextConnection.connected && nextConnection.lastSeen
+            ? `Connected. Last signal: ${new Date(nextConnection.lastSeen).toLocaleString()}.`
             : "Waiting for this website to load the snippet.",
         );
       }
     } catch (reportError) {
-      setTrackerChecked(true);
-      if (!options?.silent) {
-        setTrackerStatus(reportError instanceof Error ? reportError.message : "Could not load tracker reports.");
+      if (keepCurrentConnection) {
+        setTrackerChecked(true);
+      } else {
+        setTrackerChecked(true);
+        setTrackerConnection((current) => current ?? {
+          trackerId,
+          site: siteHostname,
+          connected: false,
+          lastSeen: null,
+          pagesSeen: 0,
+          reportsSeen: 0,
+        });
       }
+
+      if (!options?.silent) {
+        setTrackerStatus(
+          reportError instanceof Error && reportError.name === "AbortError"
+            ? "Tracker check timed out. Try Refresh reports again."
+            : reportError instanceof Error ? reportError.message : "Could not load tracker reports.",
+        );
+      }
+    } finally {
+      window.clearTimeout(timeout);
     }
-  }, [siteHostname, trackerId, trackerTargetUrl]);
+  }, [activeView, siteHostname, trackerConnection?.connected, trackerId, trackerTargetUrl]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
