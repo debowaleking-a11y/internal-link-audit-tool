@@ -101,6 +101,35 @@ export async function listTrackerPayloads(limit = 50) {
   return payloads.filter((payload): payload is { key: string; data: TrackerPayload } => payload !== null);
 }
 
+export async function deleteTrackerPayloads(filters: { trackerId?: string; site?: string }) {
+  const store = await getJsonStore("link-tracker");
+  const indexedKeys = await store.getJSON<string[]>(trackerIndexKey) ?? [];
+  const fallbackKeys = indexedKeys.length > 0
+    ? []
+    : (await store.listKeys()).filter((key) => key.endsWith(".json") && key !== trackerIndexKey);
+  const candidateKeys = [...new Set([...indexedKeys, ...fallbackKeys])];
+  const remainingKeys: string[] = [];
+  let deleted = 0;
+
+  for (const key of candidateKeys) {
+    const payload = await store.getJSON<TrackerPayload>(key);
+
+    if (payload && matchesTracker(payload, filters.trackerId, filters.site)) {
+      if (await store.deleteJSON(key)) {
+        deleted += 1;
+      }
+      continue;
+    }
+
+    if (payload) {
+      remainingKeys.push(key);
+    }
+  }
+
+  await store.setJSON(trackerIndexKey, remainingKeys.slice(0, trackerIndexLimit));
+  return deleted;
+}
+
 function matchesTracker(payload: TrackerPayload, trackerId?: string, site?: string) {
   const normalizedTrackerId = trackerId?.trim().toUpperCase();
   const normalizedSite = site?.trim().toLowerCase();

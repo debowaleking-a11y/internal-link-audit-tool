@@ -67,6 +67,19 @@ export async function deleteCrawlSession(sessionId: string) {
   return store.deleteJSON(`${sessionId}.json`);
 }
 
+export async function deleteCrawlSessionsForWebsite(websiteUrl: string) {
+  const sessions = await listCrawlSessions(websiteUrl);
+  let deleted = 0;
+
+  for (const session of sessions) {
+    if (await deleteCrawlSession(session.id)) {
+      deleted += 1;
+    }
+  }
+
+  return deleted;
+}
+
 export async function listCrawlSessions(websiteUrl?: string) {
   const normalizedWebsiteUrl = websiteUrl ? normalizeUrl(websiteUrl) : "";
 

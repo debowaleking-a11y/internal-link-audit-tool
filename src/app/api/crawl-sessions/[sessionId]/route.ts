@@ -1,7 +1,7 @@
 import { after } from "next/server";
 import { NextResponse } from "next/server";
 import {
-  deleteCrawlSession,
+  deleteCrawlSessionsForWebsite,
   buildSessionResult,
   getCrawlSession,
   resumeCrawlSession,
@@ -10,6 +10,8 @@ import {
   stopCrawlSession,
 } from "@/lib/crawl-sessions";
 import { getJsonStoreStatus } from "@/lib/json-store";
+import { trackerIdForWebsite } from "@/lib/site-id";
+import { deleteTrackerPayloads } from "@/lib/tracker-store";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -115,14 +117,29 @@ export async function PATCH(request: Request, context: { params: Promise<{ sessi
 
 export async function DELETE(_request: Request, context: { params: Promise<{ sessionId: string }> }) {
   const { sessionId } = await context.params;
-  const deleted = await deleteCrawlSession(sessionId);
+  const session = await getCrawlSession(sessionId);
 
-  if (!deleted) {
+  if (!session) {
     return NextResponse.json(
       { error: "Crawl session not found.", storage: getJsonStoreStatus() },
       { status: 404, headers: { "cache-control": "no-store, max-age=0" } },
     );
   }
 
-  return NextResponse.json({ deleted: true }, { headers: { "cache-control": "no-store, max-age=0" } });
+  const site = new URL(session.websiteUrl).hostname;
+  const deletedSessions = await deleteCrawlSessionsForWebsite(session.websiteUrl);
+  const deletedTrackerReports = await deleteTrackerPayloads({
+    site,
+    trackerId: trackerIdForWebsite(session.websiteUrl),
+  });
+
+  return NextResponse.json(
+    {
+      deleted: true,
+      deletedSessions,
+      deletedTrackerReports,
+      storage: getJsonStoreStatus(),
+    },
+    { headers: { "cache-control": "no-store, max-age=0" } },
+  );
 }

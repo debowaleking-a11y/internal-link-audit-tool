@@ -582,7 +582,7 @@ export default function Home() {
       return;
     }
 
-    const shouldDelete = window.confirm("Delete this project crawl session? This clears the saved crawl progress for this project.");
+    const shouldDelete = window.confirm("Delete this project? This removes saved crawl sessions and stored tracker reports for this website.");
     if (!shouldDelete) {
       return;
     }
@@ -601,7 +601,14 @@ export default function Home() {
 
       setBackgroundJob(null);
       setResult(null);
-      setBackgroundStatus("Project crawl session deleted. Create a new project to start fresh.");
+      setTrackerSummary(null);
+      setTrackerConnection(null);
+      setInboundTracker(null);
+      setTrackerStatus("");
+      setTrackerChecked(false);
+      setBackgroundStatus(
+        `Project data deleted. Removed ${data.deletedSessions ?? 0} crawl session(s) and ${data.deletedTrackerReports ?? 0} tracker report(s).`,
+      );
     } catch (deleteError) {
       setBackgroundStatus(deleteError instanceof Error ? deleteError.message : "Could not delete crawl session.");
     }

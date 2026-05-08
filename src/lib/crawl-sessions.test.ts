@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   createProjectCrawlSession,
   deleteCrawlSession,
+  deleteCrawlSessionsForWebsite,
   listCrawlSessions,
   mergeSessionResults,
   resumeCrawlSession,
@@ -177,6 +178,34 @@ test("deleteCrawlSession removes the saved project session", async () => {
 
   assert.equal(await deleteCrawlSession("delete-test"), true);
   assert.equal((await listCrawlSessions("https://delete.example/")).some((session) => session.id === "delete-test"), false);
+});
+
+test("deleteCrawlSessionsForWebsite removes every saved session for a project website", async () => {
+  const websiteUrl = "https://delete-project.example/";
+  const sessionTemplate = {
+    websiteUrl,
+    targetUrl: websiteUrl,
+    crawlLimit: 100,
+    batchSize: 50,
+    status: "queued" as const,
+    createdAt: "2026-05-08T00:00:00.000Z",
+    updatedAt: "2026-05-08T00:00:00.000Z",
+    startedAt: null,
+    finishedAt: null,
+    discoveredUrls: [websiteUrl],
+    nextIndex: 0,
+    progress: { crawledPages: 0, totalPages: 1, currentBatch: 0, currentUrl: "" },
+    discovery: { sitemapUrls: 1, sitemapsRead: 1, crawledFromSitemap: 0 },
+    pages: [],
+    links: [],
+    error: null,
+  };
+
+  await saveCrawlSession({ ...sessionTemplate, id: "delete-project-one" });
+  await saveCrawlSession({ ...sessionTemplate, id: "delete-project-two" });
+
+  assert.equal(await deleteCrawlSessionsForWebsite(websiteUrl), 2);
+  assert.equal((await listCrawlSessions(websiteUrl)).length, 0);
 });
 
 test("listCrawlSessions returns the latest saved project session for a website", async () => {
