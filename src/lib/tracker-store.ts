@@ -63,6 +63,9 @@ function safeKeyPart(value: string) {
     .slice(0, 120) || "unknown";
 }
 
+const trackerIndexKey = "_tracker-index.json";
+const trackerIndexLimit = 2000;
+
 export async function saveTrackerPayload(payload: TrackerPayload) {
   const store = await getJsonStore("link-tracker");
   const timestamp = Date.now();
@@ -70,16 +73,23 @@ export async function saveTrackerPayload(payload: TrackerPayload) {
   const key = `${safeKeyPart(payload.site)}/${timestamp}-${random}.json`;
 
   await store.setJSON(key, payload);
+  const existingIndex = await store.getJSON<string[]>(trackerIndexKey) ?? [];
+  const nextIndex = [key, ...existingIndex.filter((indexKey) => indexKey !== key)].slice(0, trackerIndexLimit);
+
+  await store.setJSON(trackerIndexKey, nextIndex);
   return key;
 }
 
 export async function listTrackerPayloads(limit = 50) {
   const store = await getJsonStore("link-tracker");
-  const recent = (await store.listKeys())
-    .filter((key) => key.endsWith(".json"))
-    .sort()
-    .reverse()
-    .slice(0, limit);
+  const indexedKeys = await store.getJSON<string[]>(trackerIndexKey) ?? [];
+  const recent = indexedKeys.length > 0
+    ? indexedKeys.slice(0, limit)
+    : (await store.listKeys())
+        .filter((key) => key.endsWith(".json") && key !== trackerIndexKey)
+        .sort()
+        .reverse()
+        .slice(0, limit);
 
   const payloads = await Promise.all(
     recent.map(async (key) => {
